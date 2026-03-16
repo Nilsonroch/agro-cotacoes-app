@@ -61,6 +61,7 @@ function normalizeString(value) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
@@ -81,7 +82,9 @@ function htmlToLines(html) {
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/gi, ' ')
     .replace(/&amp;/gi, '&')
-    .replace(/&#160;/gi, ' ');
+    .replace(/&#160;/gi, ' ')
+    .replace(/&#8211;/gi, '-')
+    .replace(/&#8212;/gi, '-');
 
   return plain
     .split(/\n+/)
@@ -190,7 +193,6 @@ function appendGoiasFallback(items, sectionText) {
   }));
 
   if (!matches.length) return items;
-
   return [...items, ...matches];
 }
 
@@ -222,13 +224,8 @@ function parseScotGraos(html) {
   milho = appendGoiasFallback(milho, milhoBlock);
   soja = appendGoiasFallback(soja, sojaBlock);
 
-  if (!milho.length) {
-    milho = appendGoiasFallback([], lines);
-  }
-
-  if (!soja.length) {
-    soja = appendGoiasFallback([], lines);
-  }
+  if (!milho.length) milho = appendGoiasFallback([], lines);
+  if (!soja.length) soja = appendGoiasFallback([], lines);
 
   return {
     milhoDate,
@@ -321,69 +318,146 @@ function buildReposicaoEmpty() {
   };
 }
 
-function parseReposicaoLines(lines, warnings) {
-  const machoCategorias = [
-    'BOI MAGRO',
-    'GARROTE',
-    'BEZERRO',
-    'DESMAMA'
-  ];
+const REPOSICAO_CATEGORIES = [
+  { key: 'BOI MAGRO', norm: 'boi magro', sexo: 'macho', indicador: 'boi_magro' },
+  { key: 'GARROTE', norm: 'garrote', sexo: 'macho', indicador: 'garrote' },
+  { key: 'BEZERRO', norm: 'bezerro', sexo: 'macho', indicador: 'bezerro' },
+  { key: 'DESMAMA', norm: 'desmama', sexo: 'macho', indicador: 'desmama' },
 
-  const femeaCategorias = [
-    'VACA BOIADEIRA',
-    'NOVILHA',
-    'BEZERRA',
-    'DESMAMA'
-  ];
+  { key: 'VACA BOIADEIRA', norm: 'vaca boiadeira', sexo: 'femea', indicador: 'vaca_boiadeira' },
+  { key: 'NOVILHA', norm: 'novilha', sexo: 'femea', indicador: 'novilha' },
+  { key: 'BEZERRA', norm: 'bezerra', sexo: 'femea', indicador: 'bezerra' },
+  { key: 'DESMAMA', norm: 'desmama', sexo: 'femea', indicador: 'desmama_femea' }
+];
 
-  const date = extractDateByRegex(lines.join(' '), [
-    /MACHO NELORE\s*-\s*(\d{2}\/\d{2}\/\d{4})/i,
-    /FEMEA NELORE\s*-\s*(\d{2}\/\d{2}\/\d{4})/i
-  ]);
+function detectReposicaoDate(lines) {
+  for (const line of lines) {
+    const date = extractDateByRegex(line, [
+      /(\d{2}\/\d{2}\/\d{4})/,
+    ]);
+    if (date) return date;
+  }
+  return null;
+}
+
+function extractValuesFromLine(line) {
+  return [...line.matchAll(/(\d{1,3}(?:\.\d{3})*,\d{2})/g)].map((m) => m[1]);
+}
+
+function detectUF(line) {
+  const ufMatch = line.match(/\b(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)\b/);
+  return ufMatch?.[1] || null;
+}
+
+function detectSexoContext(line, currentSection) {
+  const n = normalizeString(line);
+  if (n.includes('macho nelore')) return 'macho';
+  if (n.includes('femea nelore') || n.includes('femea nelore')) return 'femea';
+  return currentSection;
+}
+
+function detectCategoryFromLine(line, currentCategory, currentSection) {
+  const n = normalizeString(line);
+
+  for (const cat of REPOSICAO_CATEGORIES) {
+    if (n.includes(cat.norm) && cat.sexo === currentSection) {
+      return cat.key;
+    }
+  }
+
+  return currentCategory;
+}
+
+function extractLocalAfterUF(line, uf) {
+  if (!uf) return null;
+  const regex = new RegExp(`\\b${uf}\\b\\s+([A-Za-zÀ-ÿ.\\- ]+?)(?=\\s+\\d{1,3}(?:\\.\\d{3})*,\\d{2}|$)`);
+  const match = line.match(regex);
+  if (match?.[1]) return cleanText(match[1]);
+  return null;
+}
+
+function buildReposicaoItem({ categoria, uf, local, valor, sexo }) {
+  return {
+    categoria,
+    uf,
+    local,
+    valor,
+    unidade: 'R$/cab',
+    sexo,
+    fonte: 'Scot Consultoria'
+  };
+}
+
+function lineLooksUsefulForReposicao(line) {
+  const n = normalizeString(line);
+  return (
+    n.includes('macho nelore') ||
+    n.includes('femea nelore') ||
+    n.includes('boi magro') ||
+    n.includes('garrote') ||
+    n.includes('bezerro') ||
+    n.includes('desmama') ||
+    n.includes('vaca boiadeira') ||
+    n.includes('novilha') ||
+    n.includes('bezerra') ||
+    /\bgo\b/i.test(line)
+  );
+}
+
+function parseScotReposicao(html, warnings = []) {
+  const lines = htmlToLines(html);
+  const base = buildReposicaoEmpty();
+
+  const usefulLines = lines.filter(lineLooksUsefulForReposicao);
+  const date =
+    detectReposicaoDate(usefulLines) ||
+    detectReposicaoDate(lines) ||
+    null;
 
   const macho_nelore = [];
   const femea_nelore = [];
 
   let currentSection = null;
+  let currentCategory = null;
 
-  for (const rawLine of lines) {
+  for (const rawLine of usefulLines) {
     const line = cleanText(rawLine);
-    const upper = line.toUpperCase();
+    const normalized = normalizeString(line);
 
-    if (upper.includes('MACHO NELORE')) {
-      currentSection = 'macho';
-      continue;
-    }
+    currentSection = detectSexoContext(line, currentSection);
+    currentCategory = detectCategoryFromLine(line, currentCategory, currentSection);
 
-    if (upper.includes('FEMEA NELORE') || upper.includes('FÊMEA NELORE')) {
-      currentSection = 'femea';
-      continue;
-    }
+    if (!currentSection || !currentCategory) continue;
 
-    const categoryPool = currentSection === 'macho' ? machoCategorias : currentSection === 'femea' ? femeaCategorias : [];
-    if (!categoryPool.length) continue;
+    const values = extractValuesFromLine(line);
+    if (!values.length) continue;
 
-    for (const categoria of categoryPool) {
-      if (!upper.includes(categoria)) continue;
+    const uf = detectUF(line);
+    if (!uf) continue;
 
-      const valueMatches = [...line.matchAll(/(\d{1,3}(?:\.\d{3})*,\d{2})/g)].map((m) => m[1]);
-      if (!valueMatches.length) continue;
+    const local = extractLocalAfterUF(line, uf);
+    const valor = brNumberToFloat(values[0]);
 
-      const ufMatch = line.match(/\b([A-Z]{2})\b/);
-      const localMatch = line.match(/\b[A-Z]{2}\s+([A-Za-zÀ-ÿ.\- ]+?)\s+\d{1,3}(?:\.\d{3})*,\d{2}/);
+    if (valor === null) continue;
 
-      const item = {
-        categoria: categoria,
-        uf: ufMatch?.[1] || null,
-        local: localMatch?.[1] ? cleanText(localMatch[1]) : null,
-        valor: brNumberToFloat(valueMatches[0]),
-        unidade: 'R$/cab',
-        fonte: 'Scot Consultoria'
-      };
+    const item = buildReposicaoItem({
+      categoria: currentCategory,
+      uf,
+      local,
+      valor,
+      sexo: currentSection
+    });
 
-      if (currentSection === 'macho') macho_nelore.push(item);
-      if (currentSection === 'femea') femea_nelore.push(item);
-    }
+    const target = currentSection === 'macho' ? macho_nelore : femea_nelore;
+
+    const duplicate = target.find((t) =>
+      t.categoria === item.categoria &&
+      t.uf === item.uf &&
+      normalizeString(t.local) === normalizeString(item.local) &&
+      t.valor === item.valor
+    );
+
+    if (!duplicate) target.push(item);
   }
 
   const goiasMacho = macho_nelore.filter((item) => item.uf === 'GO');
@@ -404,11 +478,17 @@ function parseReposicaoLines(lines, warnings) {
     warnings.push('Scot reposição: não foi possível identificar linhas estruturadas das categorias.');
   }
 
+  const anyGoias =
+    goiasMacho.length ||
+    goiasFemea.length ||
+    Object.values(indicadores_pecuarios).some((v) => v !== null);
+
   return {
+    ...base,
     date,
-    disponivel: true,
-    observacao: !goiasMacho.length && !goiasFemea.length
-      ? 'Página acessada, porém Goiás não foi identificado claramente na estrutura desta coleta.'
+    disponivel: macho_nelore.length > 0 || femea_nelore.length > 0,
+    observacao: !anyGoias
+      ? 'Página acessada, porém Goiás não foi identificado claramente na leitura atual.'
       : null,
     indicadores_pecuarios,
     goias: {
@@ -418,22 +498,6 @@ function parseReposicaoLines(lines, warnings) {
     macho_nelore,
     femea_nelore
   };
-}
-
-function parseScotReposicao(html, warnings = []) {
-  const lines = htmlToLines(html);
-  const base = buildReposicaoEmpty();
-
-  try {
-    const parsed = parseReposicaoLines(lines, warnings);
-    return {
-      ...base,
-      ...parsed
-    };
-  } catch (error) {
-    warnings.push(`Scot reposição: erro ao interpretar HTML (${error.message})`);
-    return base;
-  }
 }
 
 async function loadCache() {
@@ -578,7 +642,7 @@ async function buildDataset() {
     ? parseScotReposicao(scotReposicaoRes.html, warnings)
     : buildReposicaoEmpty();
 
-  const payload = {
+  return {
     ok: true,
     generatedAt: isoNow(),
     cacheTtlHours: CACHE_TTL_MS / 3600000,
@@ -610,8 +674,6 @@ async function buildDataset() {
       reposicao
     }
   };
-
-  return payload;
 }
 
 async function getDataset(forceRefresh = false) {
