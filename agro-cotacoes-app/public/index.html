@@ -11,8 +11,8 @@
     <header class="hero">
       <div class="hero-top">
         <div class="brand">
-          <img src="/logo_link_rep.png" alt="Link Representações" class="brand-logo" />
-          <div>
+          <img src="/logo_link_rep.png" alt="Matsuda Link Representações" class="brand-logo" />
+          <div class="brand-copy">
             <div class="eyebrow">MERCADO FÍSICO E REFERÊNCIA AGRO</div>
             <h1>Agro Cotações</h1>
             <p>
@@ -87,7 +87,11 @@
 
         <div class="summary-grid" id="boiSummary"></div>
 
-        <div class="table-wrap">
+        <button class="toggle-link" type="button" data-target="boiTableWrap">
+          Ver praças do boi
+        </button>
+
+        <div class="table-wrap is-collapsed" id="boiTableWrap">
           <table>
             <thead>
               <tr>
@@ -110,7 +114,11 @@
 
         <div class="summary-grid" id="vacaSummary"></div>
 
-        <div class="table-wrap">
+        <button class="toggle-link" type="button" data-target="vacaTableWrap">
+          Ver praças da vaca
+        </button>
+
+        <div class="table-wrap is-collapsed" id="vacaTableWrap">
           <table>
             <thead>
               <tr>
@@ -131,7 +139,11 @@
           <span id="milhoDate">--</span>
         </div>
 
-        <div class="table-wrap">
+        <button class="toggle-link" type="button" data-target="milhoTableWrap">
+          Ver praças do milho
+        </button>
+
+        <div class="table-wrap is-collapsed" id="milhoTableWrap">
           <table>
             <thead>
               <tr>
@@ -151,7 +163,11 @@
           <span id="sojaDate">--</span>
         </div>
 
-        <div class="table-wrap">
+        <button class="toggle-link" type="button" data-target="sojaTableWrap">
+          Ver praças da soja
+        </button>
+
+        <div class="table-wrap is-collapsed" id="sojaTableWrap">
           <table>
             <thead>
               <tr>
@@ -180,7 +196,11 @@
           <span id="futuroDate">--</span>
         </div>
 
-        <div class="table-wrap">
+        <button class="toggle-link" type="button" data-target="futuroTableWrap">
+          Ver contratos futuros
+        </button>
+
+        <div class="table-wrap is-collapsed" id="futuroTableWrap">
           <table>
             <thead>
               <tr>
