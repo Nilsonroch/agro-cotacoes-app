@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agro Cotações</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Mercado físico e referência agro</p>
+          <h1>Agro Cotações</h1>
+          <p class="hero-text">
+            Acompanhe boi gordo, vaca gorda, milho, soja, bezerro e mercado futuro em uma tela simples,
+            com fonte identificada e data de atualização.
+          </p>
+        </div>
+        <div class="hero-actions">
+          <button id="refreshBtn">Atualizar agora</button>
+          <a class="ghost-btn" href="/api/cotacoes" target="_blank" rel="noreferrer">Ver JSON</a>
+        </div>
+      </header>
+
+      <section class="status-grid">
+        <div class="status-card">
+          <span class="label">Última carga</span>
+          <strong id="generatedAt">Carregando...</strong>
+        </div>
+        <div class="status-card">
+          <span class="label">Cache</span>
+          <strong id="cacheInfo">Carregando...</strong>
+        </div>
+        <div class="status-card">
+          <span class="label">Fonte principal</span>
+          <strong>Scot e CEPEA</strong>
+        </div>
+      </section>
+
+      <section class="grid two-cols">
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Boi gordo</h2>
+            <span id="scotBoiDate" class="date-pill">--</span>
+          </div>
+          <div class="kpi-grid" id="boiKpis"></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Praça</th>
+                  <th>À vista</th>
+                  <th>A prazo</th>
+                  <th>Unidade</th>
+                </tr>
+              </thead>
+              <tbody id="boiTable"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Vaca gorda</h2>
+            <span id="scotVacaDate" class="date-pill">--</span>
+          </div>
+          <div class="kpi-grid" id="vacaKpis"></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Praça</th>
+                  <th>À vista</th>
+                  <th>A prazo</th>
+                  <th>Unidade</th>
+                </tr>
+              </thead>
+              <tbody id="vacaTable"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="grid two-cols">
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Milho</h2>
+            <span id="milhoDate" class="date-pill">--</span>
+          </div>
+          <div class="kpi-grid" id="milhoKpis"></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>UF</th>
+                  <th>Cidade</th>
+                  <th>Compra</th>
+                </tr>
+              </thead>
+              <tbody id="milhoTable"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Soja</h2>
+            <span id="sojaDate" class="date-pill">--</span>
+          </div>
+          <div class="kpi-grid" id="sojaKpis"></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>UF</th>
+                  <th>Cidade</th>
+                  <th>Compra</th>
+                </tr>
+              </thead>
+              <tbody id="sojaTable"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="grid two-cols">
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Indicadores CEPEA</h2>
+            <span id="cepeaDate" class="date-pill">--</span>
+          </div>
+          <div class="kpi-grid" id="cepeaGrid"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Futuro do boi</h2>
+            <span id="futuroDate" class="date-pill">--</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Vencimento</th>
+                  <th>Ajuste atual</th>
+                  <th>Variação</th>
+                  <th>US$ à vista</th>
+                </tr>
+              </thead>
+              <tbody id="futuroTable"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel note-panel">
+        <div class="panel-header">
+          <h2>Observações</h2>
+        </div>
+        <ul>
+          <li>Esta primeira versão já funciona sem Brapi.</li>
+          <li>Mercado físico vem de Scot e CEPEA.</li>
+          <li>Reposição ficou preparada para a próxima etapa, com normalização completa por categoria.</li>
+          <li>Sempre confira data e fonte exibidas em cada bloco.</li>
+        </ul>
+      </section>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
