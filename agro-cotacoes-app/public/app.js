@@ -262,15 +262,21 @@ function renderGoias(data) {
     ? `Prazo: ${formatNumber(goiasVaca.a_prazo)} ${goiasVaca.unidade}`
     : 'Prazo: --';
 
-  goiasMilhoEl.textContent = goiasMilho ? `${formatNumber(goiasMilho.compra)} R$/sc` : '--';
+  goiasMilhoEl.textContent = goiasMilho
+    ? `${formatNumber(goiasMilho.compra)} R$/sc`
+    : 'Sem praça GO';
+
   goiasMilhoCidadeEl.textContent = goiasMilho
     ? `Cidade: ${goiasMilho.cidade || '--'}`
-    : 'Cidade: --';
+    : 'Fonte não trouxe GO';
 
-  goiasSojaEl.textContent = goiasSoja ? `${formatNumber(goiasSoja.compra)} R$/sc` : '--';
+  goiasSojaEl.textContent = goiasSoja
+    ? `${formatNumber(goiasSoja.compra)} R$/sc`
+    : 'Sem praça GO';
+
   goiasSojaCidadeEl.textContent = goiasSoja
     ? `Cidade: ${goiasSoja.cidade || '--'}`
-    : 'Cidade: --';
+    : 'Fonte não trouxe GO';
 }
 
 function setupToggles() {
