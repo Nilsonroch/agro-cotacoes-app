@@ -183,6 +183,49 @@
 
       <article class="data-card">
         <div class="section-head">
+          <h2>Indicadores Pecuários</h2>
+          <span id="reposicaoDate">--</span>
+        </div>
+
+        <div class="pecuaria-grid" id="pecuariaGrid"></div>
+
+        <button class="toggle-link" type="button" data-target="reposicaoTableWrap">
+          Ver reposição GO
+        </button>
+
+        <div class="table-wrap is-collapsed" id="reposicaoTableWrap">
+          <div class="subsection-title">Macho Nelore GO</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Categoria</th>
+                <th>UF</th>
+                <th>Local</th>
+                <th>Valor</th>
+                <th>Unidade</th>
+              </tr>
+            </thead>
+            <tbody id="reposicaoMachoTable"></tbody>
+          </table>
+
+          <div class="subsection-title subsection-gap">Fêmea Nelore GO</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Categoria</th>
+                <th>UF</th>
+                <th>Local</th>
+                <th>Valor</th>
+                <th>Unidade</th>
+              </tr>
+            </thead>
+            <tbody id="reposicaoFemeaTable"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="data-card">
+        <div class="section-head">
           <h2>Indicadores CEPEA</h2>
           <span id="cepeaDate">--</span>
         </div>
