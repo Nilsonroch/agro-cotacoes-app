@@ -1,172 +1,204 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Agro Cotações</title>
-    <link rel="stylesheet" href="/styles.css" />
-  </head>
-  <body>
-    <div class="app-shell">
-      <header class="hero">
-        <div>
-          <p class="eyebrow">Mercado físico e referência agro</p>
-          <h1>Agro Cotações</h1>
-          <p class="hero-text">
-            Acompanhe boi gordo, vaca gorda, milho, soja, bezerro e mercado futuro em uma tela simples,
-            com fonte identificada e data de atualização.
-          </p>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agro Cotações</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <div class="hero-top">
+        <div class="brand">
+          <img src="/logo_link_rep.png" alt="Link Representações" class="brand-logo" />
+          <div>
+            <div class="eyebrow">MERCADO FÍSICO E REFERÊNCIA AGRO</div>
+            <h1>Agro Cotações</h1>
+            <p>
+              Acompanhe boi gordo, vaca gorda, milho, soja, bezerro e mercado futuro
+              em uma tela simples, com fonte identificada e data de atualização.
+            </p>
+          </div>
         </div>
+
         <div class="hero-actions">
-          <button id="refreshBtn">Atualizar agora</button>
-          <a class="ghost-btn" href="/api/cotacoes" target="_blank" rel="noreferrer">Ver JSON</a>
+          <button id="refreshBtn" class="btn-primary">Atualizar agora</button>
         </div>
-      </header>
+      </div>
+    </header>
 
-      <section class="status-grid">
-        <div class="status-card">
-          <span class="label">Última carga</span>
-          <strong id="generatedAt">Carregando...</strong>
+    <section class="status-grid">
+      <article class="status-card">
+        <span class="status-label">Última carga</span>
+        <strong id="generatedAt">Carregando...</strong>
+      </article>
+
+      <article class="status-card">
+        <span class="status-label">Cache</span>
+        <strong id="cacheStatus">Carregando...</strong>
+      </article>
+
+      <article class="status-card">
+        <span class="status-label">Fonte principal</span>
+        <strong>Scot e CEPEA</strong>
+      </article>
+    </section>
+
+    <section class="goias-highlight">
+      <div class="section-head">
+        <h2>Praça Goiás</h2>
+        <span id="goiasDate">--</span>
+      </div>
+
+      <div class="goias-grid">
+        <article class="goias-card">
+          <span>Boi gordo GO Goiânia</span>
+          <strong id="goiasBoi">--</strong>
+          <small id="goiasBoiPrazo">Prazo: --</small>
+        </article>
+
+        <article class="goias-card">
+          <span>Vaca gorda GO Goiânia</span>
+          <strong id="goiasVaca">--</strong>
+          <small id="goiasVacaPrazo">Prazo: --</small>
+        </article>
+
+        <article class="goias-card">
+          <span>Milho GO</span>
+          <strong id="goiasMilho">--</strong>
+          <small id="goiasMilhoCidade">Cidade: --</small>
+        </article>
+
+        <article class="goias-card">
+          <span>Soja GO</span>
+          <strong id="goiasSoja">--</strong>
+          <small id="goiasSojaCidade">Cidade: --</small>
+        </article>
+      </div>
+    </section>
+
+    <section class="cards-grid">
+      <article class="data-card">
+        <div class="section-head">
+          <h2>Boi gordo</h2>
+          <span id="boiDate">--</span>
         </div>
-        <div class="status-card">
-          <span class="label">Cache</span>
-          <strong id="cacheInfo">Carregando...</strong>
+
+        <div class="summary-grid" id="boiSummary"></div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Praça</th>
+                <th>À vista</th>
+                <th>A prazo</th>
+                <th>Unidade</th>
+              </tr>
+            </thead>
+            <tbody id="boiTable"></tbody>
+          </table>
         </div>
-        <div class="status-card">
-          <span class="label">Fonte principal</span>
-          <strong>Scot e CEPEA</strong>
+      </article>
+
+      <article class="data-card">
+        <div class="section-head">
+          <h2>Vaca gorda</h2>
+          <span id="vacaDate">--</span>
         </div>
-      </section>
 
-      <section class="grid two-cols">
-        <article class="panel">
-          <div class="panel-header">
-            <h2>Boi gordo</h2>
-            <span id="scotBoiDate" class="date-pill">--</span>
-          </div>
-          <div class="kpi-grid" id="boiKpis"></div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Praça</th>
-                  <th>À vista</th>
-                  <th>A prazo</th>
-                  <th>Unidade</th>
-                </tr>
-              </thead>
-              <tbody id="boiTable"></tbody>
-            </table>
-          </div>
-        </article>
+        <div class="summary-grid" id="vacaSummary"></div>
 
-        <article class="panel">
-          <div class="panel-header">
-            <h2>Vaca gorda</h2>
-            <span id="scotVacaDate" class="date-pill">--</span>
-          </div>
-          <div class="kpi-grid" id="vacaKpis"></div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Praça</th>
-                  <th>À vista</th>
-                  <th>A prazo</th>
-                  <th>Unidade</th>
-                </tr>
-              </thead>
-              <tbody id="vacaTable"></tbody>
-            </table>
-          </div>
-        </article>
-      </section>
-
-      <section class="grid two-cols">
-        <article class="panel">
-          <div class="panel-header">
-            <h2>Milho</h2>
-            <span id="milhoDate" class="date-pill">--</span>
-          </div>
-          <div class="kpi-grid" id="milhoKpis"></div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>UF</th>
-                  <th>Cidade</th>
-                  <th>Compra</th>
-                </tr>
-              </thead>
-              <tbody id="milhoTable"></tbody>
-            </table>
-          </div>
-        </article>
-
-        <article class="panel">
-          <div class="panel-header">
-            <h2>Soja</h2>
-            <span id="sojaDate" class="date-pill">--</span>
-          </div>
-          <div class="kpi-grid" id="sojaKpis"></div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>UF</th>
-                  <th>Cidade</th>
-                  <th>Compra</th>
-                </tr>
-              </thead>
-              <tbody id="sojaTable"></tbody>
-            </table>
-          </div>
-        </article>
-      </section>
-
-      <section class="grid two-cols">
-        <article class="panel">
-          <div class="panel-header">
-            <h2>Indicadores CEPEA</h2>
-            <span id="cepeaDate" class="date-pill">--</span>
-          </div>
-          <div class="kpi-grid" id="cepeaGrid"></div>
-        </article>
-
-        <article class="panel">
-          <div class="panel-header">
-            <h2>Futuro do boi</h2>
-            <span id="futuroDate" class="date-pill">--</span>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Vencimento</th>
-                  <th>Ajuste atual</th>
-                  <th>Variação</th>
-                  <th>US$ à vista</th>
-                </tr>
-              </thead>
-              <tbody id="futuroTable"></tbody>
-            </table>
-          </div>
-        </article>
-      </section>
-
-      <section class="panel note-panel">
-        <div class="panel-header">
-          <h2>Observações</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Praça</th>
+                <th>À vista</th>
+                <th>A prazo</th>
+                <th>Unidade</th>
+              </tr>
+            </thead>
+            <tbody id="vacaTable"></tbody>
+          </table>
         </div>
-        <ul>
-          <li>Esta primeira versão já funciona sem Brapi.</li>
-          <li>Mercado físico vem de Scot e CEPEA.</li>
-          <li>Reposição ficou preparada para a próxima etapa, com normalização completa por categoria.</li>
-          <li>Sempre confira data e fonte exibidas em cada bloco.</li>
-        </ul>
-      </section>
-    </div>
+      </article>
 
-    <script src="/app.js"></script>
-  </body>
+      <article class="data-card">
+        <div class="section-head">
+          <h2>Milho</h2>
+          <span id="milhoDate">--</span>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>UF</th>
+                <th>Cidade</th>
+                <th>Compra</th>
+              </tr>
+            </thead>
+            <tbody id="milhoTable"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="data-card">
+        <div class="section-head">
+          <h2>Soja</h2>
+          <span id="sojaDate">--</span>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>UF</th>
+                <th>Cidade</th>
+                <th>Compra</th>
+              </tr>
+            </thead>
+            <tbody id="sojaTable"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="data-card">
+        <div class="section-head">
+          <h2>Indicadores CEPEA</h2>
+          <span id="cepeaDate">--</span>
+        </div>
+
+        <div class="cepea-grid" id="cepeaGrid"></div>
+      </article>
+
+      <article class="data-card">
+        <div class="section-head">
+          <h2>Futuro do boi</h2>
+          <span id="futuroDate">--</span>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Vencimento</th>
+                <th>Ajuste atual</th>
+                <th>Variação</th>
+                <th>US$ à vista</th>
+              </tr>
+            </thead>
+            <tbody id="futuroTable"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section id="warningBox" class="warning-box hidden"></section>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
 </html>
