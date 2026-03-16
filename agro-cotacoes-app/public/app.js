@@ -9,6 +9,7 @@ const milhoDateEl = document.getElementById('milhoDate');
 const sojaDateEl = document.getElementById('sojaDate');
 const cepeaDateEl = document.getElementById('cepeaDate');
 const futuroDateEl = document.getElementById('futuroDate');
+const reposicaoDateEl = document.getElementById('reposicaoDate');
 const goiasDateEl = document.getElementById('goiasDate');
 
 const boiSummaryEl = document.getElementById('boiSummary');
@@ -20,6 +21,9 @@ const milhoTableEl = document.getElementById('milhoTable');
 const sojaTableEl = document.getElementById('sojaTable');
 const cepeaGridEl = document.getElementById('cepeaGrid');
 const futuroTableEl = document.getElementById('futuroTable');
+const pecuariaGridEl = document.getElementById('pecuariaGrid');
+const reposicaoMachoTableEl = document.getElementById('reposicaoMachoTable');
+const reposicaoFemeaTableEl = document.getElementById('reposicaoFemeaTable');
 
 const goiasBoiEl = document.getElementById('goiasBoi');
 const goiasBoiPrazoEl = document.getElementById('goiasBoiPrazo');
@@ -152,6 +156,52 @@ function renderCepea(data) {
     .join('');
 }
 
+function renderPecuaria(indicadores) {
+  const cards = [
+    { titulo: 'Boi magro', valor: indicadores?.boi_magro, unidade: 'R$/cab' },
+    { titulo: 'Garrote', valor: indicadores?.garrote, unidade: 'R$/cab' },
+    { titulo: 'Bezerro', valor: indicadores?.bezerro, unidade: 'R$/cab' },
+    { titulo: 'Desmama', valor: indicadores?.desmama, unidade: 'R$/cab' },
+    { titulo: 'Vaca boiadeira', valor: indicadores?.vaca_boiadeira, unidade: 'R$/cab' },
+    { titulo: 'Novilha', valor: indicadores?.novilha, unidade: 'R$/cab' },
+    { titulo: 'Bezerra', valor: indicadores?.bezerra, unidade: 'R$/cab' },
+    { titulo: 'Desmama fêmea', valor: indicadores?.desmama_femea, unidade: 'R$/cab' }
+  ];
+
+  pecuariaGridEl.innerHTML = cards
+    .map(
+      (item) => `
+        <div class="pecuaria-card">
+          <span>${item.titulo}</span>
+          <strong>${formatNumber(item.valor)}</strong>
+          <small>${item.unidade}</small>
+        </div>
+      `
+    )
+    .join('');
+}
+
+function renderReposicaoTable(container, items) {
+  if (!Array.isArray(items) || !items.length) {
+    container.innerHTML = '<tr><td colspan="5">Aguardando leitura da fonte.</td></tr>';
+    return;
+  }
+
+  container.innerHTML = items
+    .map(
+      (item) => `
+        <tr>
+          <td>${item.categoria || '--'}</td>
+          <td>${item.uf || '--'}</td>
+          <td>${item.local || '--'}</td>
+          <td>${formatNumber(item.valor)}</td>
+          <td>${item.unidade || '--'}</td>
+        </tr>
+      `
+    )
+    .join('');
+}
+
 function renderFuturo(container, items) {
   if (!Array.isArray(items) || !items.length) {
     container.innerHTML = '<tr><td colspan="4">Sem dados disponíveis.</td></tr>';
@@ -233,19 +283,18 @@ function setupToggles() {
       const collapsed = target.classList.contains('is-collapsed');
       target.classList.toggle('is-collapsed');
 
-      if (collapsed) {
-        if (targetId === 'boiTableWrap') button.textContent = 'Ocultar praças do boi';
-        if (targetId === 'vacaTableWrap') button.textContent = 'Ocultar praças da vaca';
-        if (targetId === 'milhoTableWrap') button.textContent = 'Ocultar praças do milho';
-        if (targetId === 'sojaTableWrap') button.textContent = 'Ocultar praças da soja';
-        if (targetId === 'futuroTableWrap') button.textContent = 'Ocultar contratos futuros';
-      } else {
-        if (targetId === 'boiTableWrap') button.textContent = 'Ver praças do boi';
-        if (targetId === 'vacaTableWrap') button.textContent = 'Ver praças da vaca';
-        if (targetId === 'milhoTableWrap') button.textContent = 'Ver praças do milho';
-        if (targetId === 'sojaTableWrap') button.textContent = 'Ver praças da soja';
-        if (targetId === 'futuroTableWrap') button.textContent = 'Ver contratos futuros';
-      }
+      const labels = {
+        boiTableWrap: ['Ver praças do boi', 'Ocultar praças do boi'],
+        vacaTableWrap: ['Ver praças da vaca', 'Ocultar praças da vaca'],
+        milhoTableWrap: ['Ver praças do milho', 'Ocultar praças do milho'],
+        sojaTableWrap: ['Ver praças da soja', 'Ocultar praças da soja'],
+        futuroTableWrap: ['Ver contratos futuros', 'Ocultar contratos futuros'],
+        reposicaoTableWrap: ['Ver reposição GO', 'Ocultar reposição GO']
+      };
+
+      const pair = labels[targetId];
+      if (!pair) return;
+      button.textContent = collapsed ? pair[1] : pair[0];
     });
   });
 }
@@ -269,6 +318,7 @@ function renderAll(data) {
   sojaDateEl.textContent = data?.scot?.graos?.sojaDate || '--';
   cepeaDateEl.textContent = data?.cepea?.painel?.date || '--';
   futuroDateEl.textContent = data?.scot?.mercado_futuro_boi?.date || '--';
+  reposicaoDateEl.textContent = data?.scot?.reposicao?.date || '--';
 
   fillSummary(boiSummaryEl, data?.scot?.boi_gordo?.items || [], 'R$/@');
   fillSummary(vacaSummaryEl, data?.scot?.vaca_gorda?.items || [], 'R$/@');
@@ -278,6 +328,15 @@ function renderAll(data) {
   renderGraosTable(milhoTableEl, data?.scot?.graos?.milho || []);
   renderGraosTable(sojaTableEl, data?.scot?.graos?.soja || []);
   renderCepea(data?.cepea || {});
+  renderPecuaria(data?.scot?.reposicao?.indicadores_pecuarios || {});
+  renderReposicaoTable(
+    reposicaoMachoTableEl,
+    data?.scot?.reposicao?.goias?.macho_nelore || []
+  );
+  renderReposicaoTable(
+    reposicaoFemeaTableEl,
+    data?.scot?.reposicao?.goias?.femea_nelore || []
+  );
   renderFuturo(futuroTableEl, data?.scot?.mercado_futuro_boi?.futures || []);
   renderGoias(data);
 }
