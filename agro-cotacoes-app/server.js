@@ -91,7 +91,7 @@ async function tryFetch(url, label) {
   }
 }
 
-function parseScotAnimalPage(html, label) {
+function parseScotAnimalPage(html, categoria) {
   const text = cheerio.load(html).text().replace(/\s+/g, ' ');
   const date = extractDate(text);
 
@@ -104,17 +104,15 @@ function parseScotAnimalPage(html, label) {
     a_prazo: brNumberToFloat(m[3]),
     unidade: 'R$/@',
     fonte: 'Scot Consultoria',
-    categoria: label
+    categoria
   }));
 
-  return {
-    date,
-    items
-  };
+  return { date, items };
 }
 
 function parseScotGraos(html) {
   const text = cheerio.load(html).text().replace(/\s+/g, ' ');
+
   const milhoDate = extractDate(text);
   const sojaDate = extractDate(text);
 
@@ -160,7 +158,7 @@ function buildReposicaoEmpty(date = null) {
   return {
     date,
     disponivel: false,
-    observacao: 'Reposição exibida apenas quando a fonte confirmar GO/SP com segurança.',
+    observacao: 'Reposição GO/SP exibida apenas quando a fonte confirmar com segurança.',
     indicadores_pecuarios: {
       boi_magro: null,
       garrote: null,
@@ -201,13 +199,13 @@ function parseReposicao(html, warnings) {
   ];
 
   function tryExtractForUF(uf, categoria, sectionHint = '') {
-    const parts = [
-      `${sectionHint}[\\s\\S]{0,400}?${categoria}[\\s\\S]{0,200}?\\b${uf}\\b[\\s\\S]{0,80}?(\\d{1,3}(?:\\.\\d{3})*,\\d{2})`,
-      `${sectionHint}[\\s\\S]{0,400}?\\b${uf}\\b[\\s\\S]{0,120}?${categoria}[\\s\\S]{0,80}?(\\d{1,3}(?:\\.\\d{3})*,\\d{2})`
+    const attempts = [
+      `${sectionHint}[\\s\\S]{0,500}?${categoria}[\\s\\S]{0,200}?\\b${uf}\\b[\\s\\S]{0,80}?(\\d{1,3}(?:\\.\\d{3})*,\\d{2})`,
+      `${sectionHint}[\\s\\S]{0,500}?\\b${uf}\\b[\\s\\S]{0,120}?${categoria}[\\s\\S]{0,80}?(\\d{1,3}(?:\\.\\d{3})*,\\d{2})`
     ];
 
-    for (const source of parts) {
-      const regex = new RegExp(source, 'i');
+    for (const attempt of attempts) {
+      const regex = new RegExp(attempt, 'i');
       const match = text.match(regex);
       if (match?.[1]) return brNumberToFloat(match[1]);
     }
@@ -283,6 +281,29 @@ function parseReposicao(html, warnings) {
   return result;
 }
 
+function parseScotFuturo(html) {
+  const text = cheerio.load(html).text().replace(/\s+/g, ' ');
+  const date = extractDate(text);
+
+  const futures = [
+    ...text.matchAll(
+      /\b([A-Z][a-z]{2}\/\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d+)\s+([\-0-9,]+)\s+(\d{1,2},\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})/g
+    )
+  ].map((m) => ({
+    vencimento: m[1],
+    ajuste_anterior: brNumberToFloat(m[2]),
+    ajuste_atual: brNumberToFloat(m[3]),
+    contratos_abertos: Number(m[4]),
+    variacao: brNumberToFloat(m[5]),
+    cambio: brNumberToFloat(m[6]),
+    us_a_vista: brNumberToFloat(m[7]),
+    unidade: 'R$/@',
+    fonte: 'Scot Consultoria / B3'
+  }));
+
+  return { date, futures };
+}
+
 async function loadCache() {
   try {
     const raw = await fs.readFile(CACHE_FILE, 'utf8');
@@ -303,36 +324,18 @@ async function buildDataset() {
     vacaRes,
     novilhaRes,
     graosRes,
-    reposicaoRes,
-    futuroRes,
-    cepeaHomeRes,
-    cepeaBoiRes,
-    cepeaBezerroRes
+    reposicaoRes
   ] = await Promise.all([
     tryFetch(URLS.boi, 'Scot boi'),
     tryFetch(URLS.vaca, 'Scot vaca'),
     tryFetch(URLS.novilha, 'Scot novilha'),
-    tryFetch(URLS.graos, 'Scot grãos'),
-    tryFetch(URLS.reposicao, 'Scot reposição'),
-    tryFetch(URLS.scotFuturo, 'Scot futuro'),
-    tryFetch(URLS.cepeaHome, 'CEPEA painel'),
-    tryFetch(URLS.cepeaBoi, 'CEPEA boi'),
-    tryFetch(URLS.cepeaBezerro, 'CEPEA bezerro')
+    tryFetch(URLS.graos, 'Scot graos'),
+    tryFetch(URLS.reposicao, 'Scot reposicao')
   ]);
 
   const warnings = [];
 
-  for (const item of [
-    boiRes,
-    vacaRes,
-    novilhaRes,
-    graosRes,
-    reposicaoRes,
-    futuroRes,
-    cepeaHomeRes,
-    cepeaBoiRes,
-    cepeaBezerroRes
-  ]) {
+  for (const item of [boiRes, vacaRes, novilhaRes, graosRes, reposicaoRes]) {
     if (!item.ok) warnings.push(`${item.label}: ${item.error}`);
   }
 
@@ -356,9 +359,7 @@ async function buildDataset() {
     ? parseReposicao(reposicaoRes.html, warnings)
     : buildReposicaoEmpty();
 
-  const futuro = futuroRes.ok
-    ? parseScotFuturo(futuroRes.html)
-    : { date: null, futures: [] };
+  const futuro = { date: null, futures: [] };
 
   const cepea = {
     painel: { date: null, boi: null, bezerro: null, milho: null, soja: null },
@@ -366,9 +367,7 @@ async function buildDataset() {
     bezerro: { date: null, valor: null, label: 'Bezerro CEPEA', unidade: 'R$/cab', fonte: 'CEPEA' }
   };
 
-  if (!cepeaHomeRes.ok) warnings.push('CEPEA painel indisponível.');
-  if (!cepeaBoiRes.ok) warnings.push('CEPEA boi indisponível.');
-  if (!cepeaBezerroRes.ok) warnings.push('CEPEA bezerro indisponível.');
+  warnings.push('App operando somente com Scot Consultoria.');
 
   return {
     ok: true,
