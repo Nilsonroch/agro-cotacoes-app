@@ -314,189 +314,74 @@ function buildReposicaoEmpty() {
       femea_nelore: []
     },
     macho_nelore: [],
-    femea_nelore: []
-  };
-}
-
-const REPOSICAO_CATEGORIES = [
-  { key: 'BOI MAGRO', norm: 'boi magro', sexo: 'macho', indicador: 'boi_magro' },
-  { key: 'GARROTE', norm: 'garrote', sexo: 'macho', indicador: 'garrote' },
-  { key: 'BEZERRO', norm: 'bezerro', sexo: 'macho', indicador: 'bezerro' },
-  { key: 'DESMAMA', norm: 'desmama', sexo: 'macho', indicador: 'desmama' },
-
-  { key: 'VACA BOIADEIRA', norm: 'vaca boiadeira', sexo: 'femea', indicador: 'vaca_boiadeira' },
-  { key: 'NOVILHA', norm: 'novilha', sexo: 'femea', indicador: 'novilha' },
-  { key: 'BEZERRA', norm: 'bezerra', sexo: 'femea', indicador: 'bezerra' },
-  { key: 'DESMAMA', norm: 'desmama', sexo: 'femea', indicador: 'desmama_femea' }
-];
-
-function detectReposicaoDate(lines) {
-  for (const line of lines) {
-    const date = extractDateByRegex(line, [
-      /(\d{2}\/\d{2}\/\d{4})/,
-    ]);
-    if (date) return date;
-  }
-  return null;
-}
-
-function extractValuesFromLine(line) {
-  return [...line.matchAll(/(\d{1,3}(?:\.\d{3})*,\d{2})/g)].map((m) => m[1]);
-}
-
-function detectUF(line) {
-  const ufMatch = line.match(/\b(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)\b/);
-  return ufMatch?.[1] || null;
-}
-
-function detectSexoContext(line, currentSection) {
-  const n = normalizeString(line);
-  if (n.includes('macho nelore')) return 'macho';
-  if (n.includes('femea nelore') || n.includes('femea nelore')) return 'femea';
-  return currentSection;
-}
-
-function detectCategoryFromLine(line, currentCategory, currentSection) {
-  const n = normalizeString(line);
-
-  for (const cat of REPOSICAO_CATEGORIES) {
-    if (n.includes(cat.norm) && cat.sexo === currentSection) {
-      return cat.key;
+    femea_nelore: [],
+    reposicao_debug: {
+      total_lines: 0,
+      sample_lines: [],
+      useful_lines: [],
+      go_lines: [],
+      category_lines: []
     }
-  }
-
-  return currentCategory;
-}
-
-function extractLocalAfterUF(line, uf) {
-  if (!uf) return null;
-  const regex = new RegExp(`\\b${uf}\\b\\s+([A-Za-zÀ-ÿ.\\- ]+?)(?=\\s+\\d{1,3}(?:\\.\\d{3})*,\\d{2}|$)`);
-  const match = line.match(regex);
-  if (match?.[1]) return cleanText(match[1]);
-  return null;
-}
-
-function buildReposicaoItem({ categoria, uf, local, valor, sexo }) {
-  return {
-    categoria,
-    uf,
-    local,
-    valor,
-    unidade: 'R$/cab',
-    sexo,
-    fonte: 'Scot Consultoria'
   };
-}
-
-function lineLooksUsefulForReposicao(line) {
-  const n = normalizeString(line);
-  return (
-    n.includes('macho nelore') ||
-    n.includes('femea nelore') ||
-    n.includes('boi magro') ||
-    n.includes('garrote') ||
-    n.includes('bezerro') ||
-    n.includes('desmama') ||
-    n.includes('vaca boiadeira') ||
-    n.includes('novilha') ||
-    n.includes('bezerra') ||
-    /\bgo\b/i.test(line)
-  );
 }
 
 function parseScotReposicao(html, warnings = []) {
   const lines = htmlToLines(html);
   const base = buildReposicaoEmpty();
 
-  const usefulLines = lines.filter(lineLooksUsefulForReposicao);
-  const date =
-    detectReposicaoDate(usefulLines) ||
-    detectReposicaoDate(lines) ||
-    null;
+  const categoryWords = [
+    'boi magro',
+    'garrote',
+    'bezerro',
+    'desmama',
+    'vaca boiadeira',
+    'novilha',
+    'bezerra',
+    'macho nelore',
+    'femea nelore',
+    'fêmea nelore'
+  ];
 
-  const macho_nelore = [];
-  const femea_nelore = [];
+  const usefulLines = lines.filter((line) => {
+    const n = normalizeString(line);
+    return categoryWords.some((word) => n.includes(word));
+  });
 
-  let currentSection = null;
-  let currentCategory = null;
-
-  for (const rawLine of usefulLines) {
-    const line = cleanText(rawLine);
-    const normalized = normalizeString(line);
-
-    currentSection = detectSexoContext(line, currentSection);
-    currentCategory = detectCategoryFromLine(line, currentCategory, currentSection);
-
-    if (!currentSection || !currentCategory) continue;
-
-    const values = extractValuesFromLine(line);
-    if (!values.length) continue;
-
-    const uf = detectUF(line);
-    if (!uf) continue;
-
-    const local = extractLocalAfterUF(line, uf);
-    const valor = brNumberToFloat(values[0]);
-
-    if (valor === null) continue;
-
-    const item = buildReposicaoItem({
-      categoria: currentCategory,
-      uf,
-      local,
-      valor,
-      sexo: currentSection
-    });
-
-    const target = currentSection === 'macho' ? macho_nelore : femea_nelore;
-
-    const duplicate = target.find((t) =>
-      t.categoria === item.categoria &&
-      t.uf === item.uf &&
-      normalizeString(t.local) === normalizeString(item.local) &&
-      t.valor === item.valor
+  const goLines = lines.filter((line) => /\bGO\b/.test(line));
+  const categoryLines = lines.filter((line) => {
+    const n = normalizeString(line);
+    return (
+      n.includes('boi magro') ||
+      n.includes('garrote') ||
+      n.includes('bezerro') ||
+      n.includes('desmama') ||
+      n.includes('vaca boiadeira') ||
+      n.includes('novilha') ||
+      n.includes('bezerra')
     );
+  });
 
-    if (!duplicate) target.push(item);
-  }
+  const date = extractDateByRegex(lines.join(' '), [
+    /MACHO NELORE\s*-\s*(\d{2}\/\d{2}\/\d{4})/i,
+    /FEMEA NELORE\s*-\s*(\d{2}\/\d{2}\/\d{4})/i,
+    /FÊMEA NELORE\s*-\s*(\d{2}\/\d{2}\/\d{4})/i,
+    /(\d{2}\/\d{2}\/\d{4})/
+  ]);
 
-  const goiasMacho = macho_nelore.filter((item) => item.uf === 'GO');
-  const goiasFemea = femea_nelore.filter((item) => item.uf === 'GO');
-
-  const indicadores_pecuarios = {
-    boi_magro: goiasMacho.find((i) => i.categoria === 'BOI MAGRO')?.valor ?? null,
-    garrote: goiasMacho.find((i) => i.categoria === 'GARROTE')?.valor ?? null,
-    bezerro: goiasMacho.find((i) => i.categoria === 'BEZERRO')?.valor ?? null,
-    desmama: goiasMacho.find((i) => i.categoria === 'DESMAMA')?.valor ?? null,
-    vaca_boiadeira: goiasFemea.find((i) => i.categoria === 'VACA BOIADEIRA')?.valor ?? null,
-    novilha: goiasFemea.find((i) => i.categoria === 'NOVILHA')?.valor ?? null,
-    bezerra: goiasFemea.find((i) => i.categoria === 'BEZERRA')?.valor ?? null,
-    desmama_femea: goiasFemea.find((i) => i.categoria === 'DESMAMA')?.valor ?? null
-  };
-
-  if (!macho_nelore.length && !femea_nelore.length) {
-    warnings.push('Scot reposição: não foi possível identificar linhas estruturadas das categorias.');
-  }
-
-  const anyGoias =
-    goiasMacho.length ||
-    goiasFemea.length ||
-    Object.values(indicadores_pecuarios).some((v) => v !== null);
+  warnings.push('Scot reposição: modo diagnóstico ativo. Verifique scot.reposicao.reposicao_debug no /api/cotacoes.');
 
   return {
     ...base,
     date,
-    disponivel: macho_nelore.length > 0 || femea_nelore.length > 0,
-    observacao: !anyGoias
-      ? 'Página acessada, porém Goiás não foi identificado claramente na leitura atual.'
-      : null,
-    indicadores_pecuarios,
-    goias: {
-      macho_nelore: goiasMacho,
-      femea_nelore: goiasFemea
-    },
-    macho_nelore,
-    femea_nelore
+    disponivel: false,
+    observacao: 'Modo diagnóstico ativo para leitura da reposição.',
+    reposicao_debug: {
+      total_lines: lines.length,
+      sample_lines: lines.slice(0, 120),
+      useful_lines: usefulLines.slice(0, 120),
+      go_lines: goLines.slice(0, 120),
+      category_lines: categoryLines.slice(0, 120)
+    }
   };
 }
 
