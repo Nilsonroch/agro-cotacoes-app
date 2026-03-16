@@ -174,10 +174,13 @@ function renderFuturo(container, items) {
 
 function findGoiasAnimal(items) {
   if (!Array.isArray(items)) return null;
+
   return (
     items.find((item) => String(item.praca || '').toLowerCase().includes('go goiânia')) ||
     items.find((item) => String(item.praca || '').toLowerCase().includes('go goiania')) ||
-    items.find((item) => String(item.praca || '').toLowerCase().includes('go')) ||
+    items.find((item) => String(item.praca || '').toLowerCase().includes('goiânia')) ||
+    items.find((item) => String(item.praca || '').toLowerCase().includes('goiania')) ||
+    items.find((item) => String(item.praca || '').startsWith('go ')) ||
     null
   );
 }
@@ -218,6 +221,33 @@ function renderGoias(data) {
   goiasSojaCidadeEl.textContent = goiasSoja
     ? `Cidade: ${goiasSoja.cidade || '--'}`
     : 'Cidade: --';
+}
+
+function setupToggles() {
+  document.querySelectorAll('.toggle-link').forEach((button) => {
+    button.addEventListener('click', () => {
+      const targetId = button.getAttribute('data-target');
+      const target = document.getElementById(targetId);
+      if (!target) return;
+
+      const collapsed = target.classList.contains('is-collapsed');
+      target.classList.toggle('is-collapsed');
+
+      if (collapsed) {
+        if (targetId === 'boiTableWrap') button.textContent = 'Ocultar praças do boi';
+        if (targetId === 'vacaTableWrap') button.textContent = 'Ocultar praças da vaca';
+        if (targetId === 'milhoTableWrap') button.textContent = 'Ocultar praças do milho';
+        if (targetId === 'sojaTableWrap') button.textContent = 'Ocultar praças da soja';
+        if (targetId === 'futuroTableWrap') button.textContent = 'Ocultar contratos futuros';
+      } else {
+        if (targetId === 'boiTableWrap') button.textContent = 'Ver praças do boi';
+        if (targetId === 'vacaTableWrap') button.textContent = 'Ver praças da vaca';
+        if (targetId === 'milhoTableWrap') button.textContent = 'Ver praças do milho';
+        if (targetId === 'sojaTableWrap') button.textContent = 'Ver praças da soja';
+        if (targetId === 'futuroTableWrap') button.textContent = 'Ver contratos futuros';
+      }
+    });
+  });
 }
 
 function renderAll(data) {
@@ -276,4 +306,5 @@ async function loadData(forceRefresh = false) {
 
 refreshBtn.addEventListener('click', () => loadData(true));
 
+setupToggles();
 loadData(false);
