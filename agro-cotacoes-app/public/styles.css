@@ -225,31 +225,50 @@ button {
   font-size: 14px;
 }
 
-.summary-grid {
+.summary-grid,
+.pecuaria-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 14px;
   margin-bottom: 18px;
 }
 
-.summary-box {
+.cepea-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.summary-box,
+.cepea-card,
+.pecuaria-card {
   background: linear-gradient(180deg, rgba(34, 49, 76, 0.95), rgba(27, 40, 63, 0.95));
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 20px;
   padding: 16px 18px;
 }
 
-.summary-box span {
+.summary-box span,
+.cepea-card span,
+.pecuaria-card span {
   display: block;
   color: var(--muted);
   font-size: 14px;
   margin-bottom: 10px;
 }
 
-.summary-box strong {
+.summary-box strong,
+.cepea-card strong,
+.pecuaria-card strong {
   display: block;
   font-size: 28px;
   line-height: 1.1;
+  margin-bottom: 6px;
+}
+
+.cepea-card small,
+.pecuaria-card small {
+  color: #c7d3eb;
 }
 
 .toggle-link {
@@ -278,6 +297,17 @@ button {
   display: none;
 }
 
+.subsection-title {
+  color: #ffcfcd;
+  font-weight: 700;
+  font-size: 14px;
+  margin: 8px 0 12px;
+}
+
+.subsection-gap {
+  margin-top: 24px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -298,36 +328,6 @@ th {
 td {
   color: #edf2ff;
   font-size: 14px;
-}
-
-.cepea-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-}
-
-.cepea-card {
-  background: linear-gradient(180deg, rgba(32, 46, 72, 0.95), rgba(24, 35, 58, 0.95));
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  padding: 16px;
-}
-
-.cepea-card span {
-  display: block;
-  color: var(--muted);
-  font-size: 14px;
-  margin-bottom: 10px;
-}
-
-.cepea-card strong {
-  display: block;
-  font-size: 24px;
-  margin-bottom: 6px;
-}
-
-.cepea-card small {
-  color: #c7d3eb;
 }
 
 .warning-box {
@@ -352,7 +352,8 @@ td {
 
 @media (max-width: 1200px) {
   .goias-grid,
-  .cepea-grid {
+  .cepea-grid,
+  .pecuaria-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
@@ -372,7 +373,8 @@ td {
   .cards-grid,
   .goias-grid,
   .summary-grid,
-  .cepea-grid {
+  .cepea-grid,
+  .pecuaria-grid {
     grid-template-columns: 1fr;
   }
 
@@ -405,7 +407,8 @@ td {
 
   .goias-card strong,
   .summary-box strong,
-  .cepea-card strong {
+  .cepea-card strong,
+  .pecuaria-card strong {
     font-size: 22px;
   }
 
