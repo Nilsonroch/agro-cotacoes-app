@@ -31,7 +31,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 function brNumberToFloat(value) {
-  if (!value) return null;
+  if (value === null || value === undefined || value === '') return null;
   const normalized = String(value)
     .replace(/\./g, '')
     .replace(',', '.')
@@ -51,9 +51,42 @@ function cleanText(text) {
 function extractDateByRegex(text, patterns = []) {
   for (const pattern of patterns) {
     const match = text.match(pattern);
-    if (match?.[1]) return match[1].trim();
+    if (match?.[1]) return cleanText(match[1]);
   }
   return null;
+}
+
+function normalizeString(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function htmlToLines(html) {
+  if (!html) return [];
+
+  const withoutScripts = html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ');
+
+  const withBreaks = withoutScripts
+    .replace(/<\/(p|div|section|article|tr|li|table|thead|tbody|tfoot|h1|h2|h3|h4|h5|h6|ul|ol)>/gi, '\n')
+    .replace(/<(br|hr)\s*\/?>/gi, '\n')
+    .replace(/<(td|th)[^>]*>/gi, ' ')
+    .replace(/<\/(td|th)>/gi, ' ');
+
+  const plain = withBreaks
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&#160;/gi, ' ');
+
+  return plain
+    .split(/\n+/)
+    .map((line) => cleanText(line))
+    .filter(Boolean);
 }
 
 async function safeFetchText(url) {
@@ -129,9 +162,50 @@ function parseScotCategoria(html, categoriaNome) {
   return { date, items };
 }
 
+function parseGrainBlock(blockText, defaultUnit = 'R$/sc 60kg') {
+  const grainRegex =
+    /\b([A-Z]{2})\s+([A-Za-zÀ-ÿ.\- ]+?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})(?=\s+[A-Z]{2}\s+[A-Za-zÀ-ÿ]|\s*\*|$)/g;
+
+  return [...blockText.matchAll(grainRegex)].map((m) => ({
+    uf: cleanText(m[1]),
+    cidade: cleanText(m[2]),
+    compra: brNumberToFloat(m[3]),
+    unidade: defaultUnit,
+    fonte: 'Scot Consultoria / AgRural'
+  }));
+}
+
+function appendGoiasFallback(items, sectionText) {
+  if (items.some((item) => normalizeString(item.uf) === 'go')) return items;
+
+  const goRegex =
+    /\bGO\s+([A-Za-zÀ-ÿ.\- ]+?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})(?=\s+[A-Z]{2}\s+[A-Za-zÀ-ÿ]|\s*\*|$)/g;
+
+  const matches = [...sectionText.matchAll(goRegex)].map((m) => ({
+    uf: 'GO',
+    cidade: cleanText(m[1]),
+    compra: brNumberToFloat(m[2]),
+    unidade: 'R$/sc 60kg',
+    fonte: 'Scot Consultoria / AgRural'
+  }));
+
+  if (!matches.length) return items;
+
+  return [...items, ...matches];
+}
+
+function sortGrains(items) {
+  return [...items].sort((a, b) => {
+    const ufA = String(a.uf || '');
+    const ufB = String(b.uf || '');
+    if (ufA === ufB) return String(a.cidade || '').localeCompare(String(b.cidade || ''), 'pt-BR');
+    return ufA.localeCompare(ufB, 'pt-BR');
+  });
+}
+
 function parseScotGraos(html) {
   const text = cheerio.load(html).text().replace(/\s+/g, ' ');
-
+  const lines = htmlToLines(html).join(' ');
   const milhoDate = extractDateByRegex(text, [/MILHO - (\d{2}\/\d{2}\/\d{4})/i]);
   const sojaDate = extractDateByRegex(text, [/SOJA - (\d{2}\/\d{2}\/\d{4})/i]);
 
@@ -139,33 +213,28 @@ function parseScotGraos(html) {
   const sojaStart = text.indexOf('SOJA -');
 
   const milhoBlock =
-    milhoStart >= 0 && sojaStart > milhoStart ? text.slice(milhoStart, sojaStart) : '';
+    milhoStart >= 0 && sojaStart > milhoStart ? text.slice(milhoStart, sojaStart) : text;
   const sojaBlock = sojaStart >= 0 ? text.slice(sojaStart) : '';
 
-  const grainRegex =
-    /\b([A-Z]{2})\s+([A-Za-zÀ-ÿ.\- ]+?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})(?=\s+[A-Z]{2}\s+[A-Za-zÀ-ÿ]|\s*\*|$)/g;
+  let milho = parseGrainBlock(milhoBlock);
+  let soja = parseGrainBlock(sojaBlock);
 
-  const milho = [...milhoBlock.matchAll(grainRegex)].map((m) => ({
-    uf: m[1],
-    cidade: cleanText(m[2]),
-    compra: brNumberToFloat(m[3]),
-    unidade: 'R$/sc 60kg',
-    fonte: 'Scot Consultoria / AgRural'
-  }));
+  milho = appendGoiasFallback(milho, milhoBlock);
+  soja = appendGoiasFallback(soja, sojaBlock);
 
-  const soja = [...sojaBlock.matchAll(grainRegex)].map((m) => ({
-    uf: m[1],
-    cidade: cleanText(m[2]),
-    compra: brNumberToFloat(m[3]),
-    unidade: 'R$/sc 60kg',
-    fonte: 'Scot Consultoria / AgRural'
-  }));
+  if (!milho.length) {
+    milho = appendGoiasFallback([], lines);
+  }
+
+  if (!soja.length) {
+    soja = appendGoiasFallback([], lines);
+  }
 
   return {
     milhoDate,
     sojaDate,
-    milho,
-    soja
+    milho: sortGrains(milho),
+    soja: sortGrains(soja)
   };
 }
 
@@ -228,16 +297,143 @@ function parseCepeaIndicador(html, label, unidade) {
   };
 }
 
-function parseScotReposicao(html) {
-  const text = cheerio.load(html).text().replace(/\s+/g, ' ');
-  const date = extractDateByRegex(text, [/MACHO NELORE - (\d{2}\/\d{2}\/\d{4})/i]);
+function buildReposicaoEmpty() {
+  return {
+    date: null,
+    disponivel: false,
+    observacao: 'Falha ao acessar ou interpretar a página de reposição da Scot.',
+    indicadores_pecuarios: {
+      boi_magro: null,
+      garrote: null,
+      bezerro: null,
+      desmama: null,
+      vaca_boiadeira: null,
+      novilha: null,
+      bezerra: null,
+      desmama_femea: null
+    },
+    goias: {
+      macho_nelore: [],
+      femea_nelore: []
+    },
+    macho_nelore: [],
+    femea_nelore: []
+  };
+}
+
+function parseReposicaoLines(lines, warnings) {
+  const machoCategorias = [
+    'BOI MAGRO',
+    'GARROTE',
+    'BEZERRO',
+    'DESMAMA'
+  ];
+
+  const femeaCategorias = [
+    'VACA BOIADEIRA',
+    'NOVILHA',
+    'BEZERRA',
+    'DESMAMA'
+  ];
+
+  const date = extractDateByRegex(lines.join(' '), [
+    /MACHO NELORE\s*-\s*(\d{2}\/\d{2}\/\d{4})/i,
+    /FEMEA NELORE\s*-\s*(\d{2}\/\d{2}\/\d{4})/i
+  ]);
+
+  const macho_nelore = [];
+  const femea_nelore = [];
+
+  let currentSection = null;
+
+  for (const rawLine of lines) {
+    const line = cleanText(rawLine);
+    const upper = line.toUpperCase();
+
+    if (upper.includes('MACHO NELORE')) {
+      currentSection = 'macho';
+      continue;
+    }
+
+    if (upper.includes('FEMEA NELORE') || upper.includes('FÊMEA NELORE')) {
+      currentSection = 'femea';
+      continue;
+    }
+
+    const categoryPool = currentSection === 'macho' ? machoCategorias : currentSection === 'femea' ? femeaCategorias : [];
+    if (!categoryPool.length) continue;
+
+    for (const categoria of categoryPool) {
+      if (!upper.includes(categoria)) continue;
+
+      const valueMatches = [...line.matchAll(/(\d{1,3}(?:\.\d{3})*,\d{2})/g)].map((m) => m[1]);
+      if (!valueMatches.length) continue;
+
+      const ufMatch = line.match(/\b([A-Z]{2})\b/);
+      const localMatch = line.match(/\b[A-Z]{2}\s+([A-Za-zÀ-ÿ.\- ]+?)\s+\d{1,3}(?:\.\d{3})*,\d{2}/);
+
+      const item = {
+        categoria: categoria,
+        uf: ufMatch?.[1] || null,
+        local: localMatch?.[1] ? cleanText(localMatch[1]) : null,
+        valor: brNumberToFloat(valueMatches[0]),
+        unidade: 'R$/cab',
+        fonte: 'Scot Consultoria'
+      };
+
+      if (currentSection === 'macho') macho_nelore.push(item);
+      if (currentSection === 'femea') femea_nelore.push(item);
+    }
+  }
+
+  const goiasMacho = macho_nelore.filter((item) => item.uf === 'GO');
+  const goiasFemea = femea_nelore.filter((item) => item.uf === 'GO');
+
+  const indicadores_pecuarios = {
+    boi_magro: goiasMacho.find((i) => i.categoria === 'BOI MAGRO')?.valor ?? null,
+    garrote: goiasMacho.find((i) => i.categoria === 'GARROTE')?.valor ?? null,
+    bezerro: goiasMacho.find((i) => i.categoria === 'BEZERRO')?.valor ?? null,
+    desmama: goiasMacho.find((i) => i.categoria === 'DESMAMA')?.valor ?? null,
+    vaca_boiadeira: goiasFemea.find((i) => i.categoria === 'VACA BOIADEIRA')?.valor ?? null,
+    novilha: goiasFemea.find((i) => i.categoria === 'NOVILHA')?.valor ?? null,
+    bezerra: goiasFemea.find((i) => i.categoria === 'BEZERRA')?.valor ?? null,
+    desmama_femea: goiasFemea.find((i) => i.categoria === 'DESMAMA')?.valor ?? null
+  };
+
+  if (!macho_nelore.length && !femea_nelore.length) {
+    warnings.push('Scot reposição: não foi possível identificar linhas estruturadas das categorias.');
+  }
 
   return {
     date,
     disponivel: true,
-    observacao:
-      'A página de reposição da Scot está disponível, mas a primeira versão do app ainda não normaliza a tabela completa por categoria e UF.'
+    observacao: !goiasMacho.length && !goiasFemea.length
+      ? 'Página acessada, porém Goiás não foi identificado claramente na estrutura desta coleta.'
+      : null,
+    indicadores_pecuarios,
+    goias: {
+      macho_nelore: goiasMacho,
+      femea_nelore: goiasFemea
+    },
+    macho_nelore,
+    femea_nelore
   };
+}
+
+function parseScotReposicao(html, warnings = []) {
+  const lines = htmlToLines(html);
+  const base = buildReposicaoEmpty();
+
+  try {
+    const parsed = parseReposicaoLines(lines, warnings);
+    return {
+      ...base,
+      ...parsed
+    };
+  } catch (error) {
+    warnings.push(`Scot reposição: erro ao interpretar HTML (${error.message})`);
+    return base;
+  }
 }
 
 async function loadCache() {
@@ -378,19 +574,11 @@ async function buildDataset() {
     'CEPEA bezerro'
   );
 
-  const reposicao = safeParse(
-    parseScotReposicao,
-    scotReposicaoRes.html,
-    {
-      date: null,
-      disponivel: false,
-      observacao: 'Falha ao acessar a página de reposição da Scot.'
-    },
-    warnings,
-    'Scot reposição'
-  );
+  const reposicao = scotReposicaoRes.html
+    ? parseScotReposicao(scotReposicaoRes.html, warnings)
+    : buildReposicaoEmpty();
 
-  return {
+  const payload = {
     ok: true,
     generatedAt: isoNow(),
     cacheTtlHours: CACHE_TTL_MS / 3600000,
@@ -403,6 +591,7 @@ async function buildDataset() {
       scotMilhoData: scotGraos.milhoDate,
       scotSojaData: scotGraos.sojaDate,
       scotFuturoData: scotFuturo.date,
+      scotReposicaoData: reposicao.date,
       cepeaPainelData: cepeaHome.date,
       cepeaBoiData: cepeaBoi.date,
       cepeaBezerroData: cepeaBezerro.date
@@ -421,6 +610,8 @@ async function buildDataset() {
       reposicao
     }
   };
+
+  return payload;
 }
 
 async function getDataset(forceRefresh = false) {
