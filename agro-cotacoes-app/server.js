@@ -4,7 +4,6 @@ import * as cheerio from 'cheerio';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { chromium } from 'playwright';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,33 +12,19 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 
 const CACHE_FILE = path.join(__dirname, 'data', 'cache.json');
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const CACHE_TTL_MS = 2 * 60 * 60 * 1000;
 
 const URLS = {
-  scotIndicadores: 'https://www.scotconsultoria.com.br/cotacoes/indicadores/?ref=foo',
-  scotBoi: 'https://www.scotconsultoria.com.br/cotacoes/boi-gordo/?ref=foo',
-  scotVaca: 'https://www.scotconsultoria.com.br/cotacoes/vaca-gorda/?ref=foo',
-  scotGraos: 'https://www.scotconsultoria.com.br/cotacoes/graos/?ref=foo',
-  scotFuturo: 'https://www.scotconsultoria.com.br/cotacoes/mercado-futuro/?ref=foo',
-  scotReposicao: 'https://www.scotconsultoria.com.br/cotacoes/reposicao/?ref=foo',
-  cepeaHome: 'https://www.cepea.org.br/br',
-  cepeaBoi: 'https://www.cepea.org.br/br/indicador/boi-gordo.aspx',
-  cepeaBezerro: 'https://www.cepea.org.br/br/indicador/bezerro.aspx'
+  boi: 'https://www.scotconsultoria.com.br/cotacoes/boi-gordo/',
+  vaca: 'https://www.scotconsultoria.com.br/cotacoes/vaca-gorda/?ref=smn',
+  novilha: 'https://www.scotconsultoria.com.br/cotacoes/novilha/?ref=smn',
+  reposicao: 'https://www.scotconsultoria.com.br/cotacoes/reposicao/?ref=smn',
+  graos: 'https://www.scotconsultoria.com.br/cotacoes/graos/?ref=smn'
 };
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
-
-function brNumberToFloat(value) {
-  if (value === null || value === undefined || value === '') return null;
-  const normalized = String(value)
-    .replace(/\./g, '')
-    .replace(',', '.')
-    .replace(/[^0-9.-]/g, '');
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
-}
 
 function isoNow() {
   return new Date().toISOString();
@@ -49,14 +34,6 @@ function cleanText(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
-function extractDateByRegex(text, patterns = []) {
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match?.[1]) return cleanText(match[1]);
-  }
-  return null;
-}
-
 function normalizeString(value) {
   return String(value || '')
     .normalize('NFD')
@@ -64,6 +41,21 @@ function normalizeString(value) {
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function brNumberToFloat(value) {
+  if (!value) return null;
+  const normalized = String(value)
+    .replace(/\./g, '')
+    .replace(',', '.')
+    .replace(/[^0-9.-]/g, '');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function extractDate(text) {
+  const match = String(text).match(/(\d{2}\/\d{2}\/\d{4})/);
+  return match?.[1] || null;
 }
 
 async function safeFetchText(url) {
@@ -85,35 +77,9 @@ async function safeFetchText(url) {
   return await res.text();
 }
 
-async function safeFetchReposicaoWithPlaywright(url) {
-  const browser = await chromium.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  });
-
-  try {
-    const page = await browser.newPage({
-      userAgent:
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36',
-      locale: 'pt-BR'
-    });
-
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
-    await page.waitForTimeout(5000);
-
-    return await page.content();
-  } finally {
-    await browser.close();
-  }
-}
-
 async function tryFetch(url, label) {
   try {
-    const html =
-      label === 'Scot reposição'
-        ? await safeFetchReposicaoWithPlaywright(url)
-        : await safeFetchText(url);
-
+    const html = await safeFetchText(url);
     return { ok: true, label, html, error: null };
   } catch (error) {
     return {
@@ -125,75 +91,32 @@ async function tryFetch(url, label) {
   }
 }
 
-function parseScotIndicadores(html) {
+function parseScotAnimalPage(html, label) {
   const text = cheerio.load(html).text().replace(/\s+/g, ' ');
-  const date = extractDateByRegex(text, [
-    /Indicador do boi gordo da Scot Consultoria \(R\$\/@\) - (\d{2}\/\d{2}\/\d{4})/i
-  ]);
+  const date = extractDate(text);
 
   const regex =
-    /\b([A-Z]{2}\s(?:Barretos|Araçatuba|Triângulo|BH|Norte|Sul|Goiânia|Reg\. Sul|Dourados|C\. Grande|Três Lagoas|Oeste \(kg\)|Pelotas \(kg\)|Oeste|Sudoeste|Cuiabá\*|Sudeste|Noroeste|SC|Alagoas|Marabá|Redenção|Paragominas|Acre|ES|RJ))\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})/g;
-
-  const items = [...text.matchAll(regex)].map((m) => ({
-    praca: cleanText(m[1]),
-    hoje: brNumberToFloat(m[2]),
-    ontem: brNumberToFloat(m[3]),
-    unidade: m[1].includes('(kg)') ? 'R$/kg' : 'R$/@',
-    fonte: 'Scot Consultoria'
-  }));
-
-  return { date, items };
-}
-
-function parseScotCategoria(html, categoriaNome) {
-  const text = cheerio.load(html).text().replace(/\s+/g, ' ');
-  const date = extractDateByRegex(text, [
-    new RegExp(`${categoriaNome}.*?(\\d{2}\\/\\d{2}\\/\\d{4})`, 'i')
-  ]);
-
-  const regex =
-    /\b([A-Z]{2}\s(?:Barretos|Araçatuba|Triângulo|BH|Norte|Sul|Goiânia|Reg\. Sul|Dourados|C\. Grande|Três Lagoas|Oeste \(kg\)|Pelotas \(kg\)|Oeste|Sudoeste|Cuiabá\*|Sudeste|Noroeste|SC|Alagoas|Marabá|Redenção|Paragominas|Acre|ES|RJ|Roraima))\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})/g;
+    /\b((?:SP|GO)\s(?:Barretos|Araçatuba|Goiânia|Reg\. Sul))\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})/g;
 
   const items = [...text.matchAll(regex)].map((m) => ({
     praca: cleanText(m[1]),
     a_vista: brNumberToFloat(m[2]),
     a_prazo: brNumberToFloat(m[3]),
-    unidade: m[1].includes('(kg)') ? 'R$/kg' : 'R$/@',
-    fonte: 'Scot Consultoria'
+    unidade: 'R$/@',
+    fonte: 'Scot Consultoria',
+    categoria: label
   }));
 
-  return { date, items };
-}
-
-function parseGrainBlock(blockText, defaultUnit = 'R$/sc 60kg') {
-  const grainRegex =
-    /\b([A-Z]{2})\s+([A-Za-zÀ-ÿ.\- ]+?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})(?=\s+[A-Z]{2}\s+[A-Za-zÀ-ÿ]|\s*\*|$)/g;
-
-  return [...blockText.matchAll(grainRegex)].map((m) => ({
-    uf: cleanText(m[1]),
-    cidade: cleanText(m[2]),
-    compra: brNumberToFloat(m[3]),
-    unidade: defaultUnit,
-    fonte: 'Scot Consultoria / AgRural'
-  }));
-}
-
-function sortGrains(items) {
-  return [...items].sort((a, b) => {
-    const ufA = String(a.uf || '');
-    const ufB = String(b.uf || '');
-    if (ufA === ufB) {
-      return String(a.cidade || '').localeCompare(String(b.cidade || ''), 'pt-BR');
-    }
-    return ufA.localeCompare(ufB, 'pt-BR');
-  });
+  return {
+    date,
+    items
+  };
 }
 
 function parseScotGraos(html) {
   const text = cheerio.load(html).text().replace(/\s+/g, ' ');
-
-  const milhoDate = extractDateByRegex(text, [/MILHO - (\d{2}\/\d{2}\/\d{4})/i]);
-  const sojaDate = extractDateByRegex(text, [/SOJA - (\d{2}\/\d{2}\/\d{4})/i]);
+  const milhoDate = extractDate(text);
+  const sojaDate = extractDate(text);
 
   const milhoStart = text.indexOf('MILHO -');
   const sojaStart = text.indexOf('SOJA -');
@@ -202,81 +125,42 @@ function parseScotGraos(html) {
     milhoStart >= 0 && sojaStart > milhoStart ? text.slice(milhoStart, sojaStart) : '';
   const sojaBlock = sojaStart >= 0 ? text.slice(sojaStart) : '';
 
-  const milho = parseGrainBlock(milhoBlock);
-  const soja = parseGrainBlock(sojaBlock);
+  const grainRegex =
+    /\b([A-Z]{2})\s+([A-Za-zÀ-ÿ.\- ]+?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})(?=\s+[A-Z]{2}\s+[A-Za-zÀ-ÿ]|\s*\*|$)/g;
+
+  const milho = [...milhoBlock.matchAll(grainRegex)]
+    .map((m) => ({
+      uf: cleanText(m[1]),
+      cidade: cleanText(m[2]),
+      compra: brNumberToFloat(m[3]),
+      unidade: 'R$/sc 60kg',
+      fonte: 'Scot Consultoria / AgRural'
+    }))
+    .filter((item) => ['GO', 'SP'].includes(item.uf));
+
+  const soja = [...sojaBlock.matchAll(grainRegex)]
+    .map((m) => ({
+      uf: cleanText(m[1]),
+      cidade: cleanText(m[2]),
+      compra: brNumberToFloat(m[3]),
+      unidade: 'R$/sc 60kg',
+      fonte: 'Scot Consultoria / AgRural'
+    }))
+    .filter((item) => ['GO', 'SP'].includes(item.uf));
 
   return {
     milhoDate,
     sojaDate,
-    milho: sortGrains(milho),
-    soja: sortGrains(soja)
+    milho,
+    soja
   };
 }
 
-function parseScotFuturo(html) {
-  const text = cheerio.load(html).text().replace(/\s+/g, ' ');
-  const date = extractDateByRegex(text, [
-    /MERCADO FUTURO DO BOI GORDO - (\d{2}\/\d{2}\/\d{4})/i
-  ]);
-
-  const futures = [
-    ...text.matchAll(
-      /\b([A-Z][a-z]{2}\/\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d+)\s+([\-0-9,]+)\s+(\d{1,2},\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})/g
-    )
-  ].map((m) => ({
-    vencimento: m[1],
-    ajuste_anterior: brNumberToFloat(m[2]),
-    ajuste_atual: brNumberToFloat(m[3]),
-    contratos_abertos: Number(m[4]),
-    variacao: brNumberToFloat(m[5]),
-    cambio: brNumberToFloat(m[6]),
-    us_a_vista: brNumberToFloat(m[7]),
-    unidade: 'R$/@',
-    fonte: 'Scot Consultoria / B3'
-  }));
-
-  return { date, futures };
-}
-
-function parseCepeaHome(html) {
-  const text = cheerio.load(html).text().replace(/\s+/g, ' ');
-  const date = extractDateByRegex(text, [/Preços CEPEA\s+(\d{2}\|\d{2}\|\d{4})/i]);
-
-  function extract(label, unit) {
-    const regex = new RegExp(`${label}\\s+R\\$\\s+([0-9\\.]+,\\d{2})\\s+\\|\\s+${unit}`, 'i');
-    const match = text.match(regex);
-    return match ? brNumberToFloat(match[1]) : null;
-  }
-
+function buildReposicaoEmpty(date = null) {
   return {
-    date: date ? date.replace(/\|/g, '/') : null,
-    boi: extract('Boi', '@'),
-    bezerro: extract('Bezerro', 'cab'),
-    milho: extract('Milho', 'sc'),
-    soja: extract('Soja', 'sc')
-  };
-}
-
-function parseCepeaIndicador(html, label, unidade) {
-  const text = cheerio.load(html).text().replace(/\s+/g, ' ');
-  const match = text.match(
-    /(\d{2}\/\d{2}\/\d{4})\s+([0-9.]+,\d{2})\s+[\-0-9,%]+\s+[\-0-9,%]+\s+[0-9.]+,\d{2}/
-  );
-
-  return {
-    date: match?.[1] || null,
-    valor: match?.[2] ? brNumberToFloat(match[2]) : null,
-    label,
-    unidade,
-    fonte: 'CEPEA'
-  };
-}
-
-function buildReposicaoEmpty() {
-  return {
-    date: null,
+    date,
     disponivel: false,
-    observacao: 'Reposição GO ainda não confirmada pela fonte.',
+    observacao: 'Reposição exibida apenas quando a fonte confirmar GO/SP com segurança.',
     indicadores_pecuarios: {
       boi_magro: null,
       garrote: null,
@@ -291,91 +175,112 @@ function buildReposicaoEmpty() {
       macho_nelore: [],
       femea_nelore: []
     },
+    sao_paulo: {
+      macho_nelore: [],
+      femea_nelore: []
+    },
     macho_nelore: [],
     femea_nelore: []
   };
 }
 
-function parseReposicaoFromRenderedText(html, warnings = []) {
+function parseReposicao(html, warnings) {
   const text = cheerio.load(html).text().replace(/\s+/g, ' ');
-  const date = extractDateByRegex(text, [
-    /MACHO NELORE\s*-\s*(\d{2}\/\d{2}\/\d{4})/i,
-    /FEMEA NELORE\s*-\s*(\d{2}\/\d{2}\/\d{4})/i,
-    /FÊMEA NELORE\s*-\s*(\d{2}\/\d{2}\/\d{4})/i,
-    /(\d{2}\/\d{2}\/\d{4})/
-  ]);
+  const date = extractDate(text);
+  const result = buildReposicaoEmpty(date);
 
-  const empty = buildReposicaoEmpty();
-  empty.date = date;
+  const patterns = [
+    { categoria: 'BOI MAGRO', sexo: 'macho', indicador: 'boi_magro' },
+    { categoria: 'GARROTE', sexo: 'macho', indicador: 'garrote' },
+    { categoria: 'BEZERRO', sexo: 'macho', indicador: 'bezerro' },
+    { categoria: 'DESMAMA', sexo: 'macho', indicador: 'desmama' },
+    { categoria: 'VACA BOIADEIRA', sexo: 'femea', indicador: 'vaca_boiadeira' },
+    { categoria: 'NOVILHA', sexo: 'femea', indicador: 'novilha' },
+    { categoria: 'BEZERRA', sexo: 'femea', indicador: 'bezerra' },
+    { categoria: 'DESMAMA', sexo: 'femea', indicador: 'desmama_femea' }
+  ];
 
-  const macho_nelore = [];
-  const femea_nelore = [];
+  function tryExtractForUF(uf, categoria, sectionHint = '') {
+    const parts = [
+      `${sectionHint}[\\s\\S]{0,400}?${categoria}[\\s\\S]{0,200}?\\b${uf}\\b[\\s\\S]{0,80}?(\\d{1,3}(?:\\.\\d{3})*,\\d{2})`,
+      `${sectionHint}[\\s\\S]{0,400}?\\b${uf}\\b[\\s\\S]{0,120}?${categoria}[\\s\\S]{0,80}?(\\d{1,3}(?:\\.\\d{3})*,\\d{2})`
+    ];
 
-  const explicitRowRegex =
-    /\b(GO)\b\s+([A-Za-zÀ-ÿ.\- ]+?)\s+(Boi Magro|Garrote|Bezerro|Desmama|Vaca Boiadeira|Novilha|Bezerra)\s+(\d{1,3}(?:\.\d{3})*,\d{2})/gi;
+    for (const source of parts) {
+      const regex = new RegExp(source, 'i');
+      const match = text.match(regex);
+      if (match?.[1]) return brNumberToFloat(match[1]);
+    }
 
-  const matches = [...text.matchAll(explicitRowRegex)];
-
-  for (const match of matches) {
-    const uf = cleanText(match[1]);
-    const local = cleanText(match[2]);
-    const categoriaBruta = cleanText(match[3]);
-    const valor = brNumberToFloat(match[4]);
-
-    if (valor === null) continue;
-
-    const categoriaNorm = normalizeString(categoriaBruta);
-    const sexo =
-      categoriaNorm === 'vaca boiadeira' ||
-      categoriaNorm === 'novilha' ||
-      categoriaNorm === 'bezerra'
-        ? 'femea'
-        : 'macho';
-
-    const item = {
-      categoria: categoriaBruta.toUpperCase(),
-      uf,
-      local,
-      valor,
-      unidade: 'R$/cab',
-      sexo,
-      fonte: 'Scot Consultoria'
-    };
-
-    if (sexo === 'macho') macho_nelore.push(item);
-    else femea_nelore.push(item);
+    return null;
   }
 
-  const hasExplicitReposicaoGo = macho_nelore.length > 0 || femea_nelore.length > 0;
+  for (const p of patterns) {
+    const sectionHint =
+      p.sexo === 'macho'
+        ? 'MACHO NELORE'
+        : '(?:FEMEA NELORE|FÊMEA NELORE)';
 
-  if (!hasExplicitReposicaoGo) {
-    warnings.push('Reposição GO: preços ocultados até confirmação explícita da fonte.');
-    return empty;
+    const goValue = tryExtractForUF('GO', p.categoria, sectionHint);
+    const spValue = tryExtractForUF('SP', p.categoria, sectionHint);
+
+    if (goValue !== null) {
+      const item = {
+        categoria: p.categoria,
+        uf: 'GO',
+        local: 'Goiás',
+        valor: goValue,
+        unidade: 'R$/cab',
+        sexo: p.sexo,
+        fonte: 'Scot Consultoria'
+      };
+
+      if (p.sexo === 'macho') result.goias.macho_nelore.push(item);
+      else result.goias.femea_nelore.push(item);
+
+      result.indicadores_pecuarios[p.indicador] = goValue;
+    }
+
+    if (spValue !== null) {
+      const item = {
+        categoria: p.categoria,
+        uf: 'SP',
+        local: 'São Paulo',
+        valor: spValue,
+        unidade: 'R$/cab',
+        sexo: p.sexo,
+        fonte: 'Scot Consultoria'
+      };
+
+      if (p.sexo === 'macho') result.sao_paulo.macho_nelore.push(item);
+      else result.sao_paulo.femea_nelore.push(item);
+    }
   }
 
-  const indicadores_pecuarios = {
-    boi_magro: macho_nelore.find((i) => i.categoria === 'BOI MAGRO')?.valor ?? null,
-    garrote: macho_nelore.find((i) => i.categoria === 'GARROTE')?.valor ?? null,
-    bezerro: macho_nelore.find((i) => i.categoria === 'BEZERRO')?.valor ?? null,
-    desmama: macho_nelore.find((i) => i.categoria === 'DESMAMA')?.valor ?? null,
-    vaca_boiadeira: femea_nelore.find((i) => i.categoria === 'VACA BOIADEIRA')?.valor ?? null,
-    novilha: femea_nelore.find((i) => i.categoria === 'NOVILHA')?.valor ?? null,
-    bezerra: femea_nelore.find((i) => i.categoria === 'BEZERRA')?.valor ?? null,
-    desmama_femea: femea_nelore.find((i) => i.categoria === 'DESMAMA')?.valor ?? null
-  };
+  result.macho_nelore = [
+    ...result.goias.macho_nelore,
+    ...result.sao_paulo.macho_nelore
+  ];
 
-  return {
-    date,
-    disponivel: true,
-    observacao: null,
-    indicadores_pecuarios,
-    goias: {
-      macho_nelore,
-      femea_nelore
-    },
-    macho_nelore,
-    femea_nelore
-  };
+  result.femea_nelore = [
+    ...result.goias.femea_nelore,
+    ...result.sao_paulo.femea_nelore
+  ];
+
+  const hasConfirmed =
+    result.goias.macho_nelore.length > 0 ||
+    result.goias.femea_nelore.length > 0 ||
+    result.sao_paulo.macho_nelore.length > 0 ||
+    result.sao_paulo.femea_nelore.length > 0;
+
+  if (!hasConfirmed) {
+    warnings.push('Reposição GO/SP: preços ocultados até confirmação explícita da fonte.');
+    return buildReposicaoEmpty(date);
+  }
+
+  result.disponivel = true;
+  result.observacao = null;
+  return result;
 }
 
 async function loadCache() {
@@ -392,164 +297,105 @@ async function saveCache(data) {
   await fs.writeFile(CACHE_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
 
-function safeParse(parser, html, fallback, warnings, label) {
-  if (!html) return fallback;
-
-  try {
-    return parser(html);
-  } catch (error) {
-    warnings.push(`${label}: erro ao interpretar HTML (${error.message})`);
-    return fallback;
-  }
-}
-
 async function buildDataset() {
   const [
-    scotIndicadoresRes,
-    scotBoiRes,
-    scotVacaRes,
-    scotGraosRes,
-    scotFuturoRes,
+    boiRes,
+    vacaRes,
+    novilhaRes,
+    graosRes,
+    reposicaoRes,
+    futuroRes,
     cepeaHomeRes,
     cepeaBoiRes,
-    cepeaBezerroRes,
-    scotReposicaoRes
+    cepeaBezerroRes
   ] = await Promise.all([
-    tryFetch(URLS.scotIndicadores, 'Scot indicadores'),
-    tryFetch(URLS.scotBoi, 'Scot boi'),
-    tryFetch(URLS.scotVaca, 'Scot vaca'),
-    tryFetch(URLS.scotGraos, 'Scot grãos'),
+    tryFetch(URLS.boi, 'Scot boi'),
+    tryFetch(URLS.vaca, 'Scot vaca'),
+    tryFetch(URLS.novilha, 'Scot novilha'),
+    tryFetch(URLS.graos, 'Scot grãos'),
+    tryFetch(URLS.reposicao, 'Scot reposição'),
     tryFetch(URLS.scotFuturo, 'Scot futuro'),
     tryFetch(URLS.cepeaHome, 'CEPEA painel'),
     tryFetch(URLS.cepeaBoi, 'CEPEA boi'),
-    tryFetch(URLS.cepeaBezerro, 'CEPEA bezerro'),
-    tryFetch(URLS.scotReposicao, 'Scot reposição')
+    tryFetch(URLS.cepeaBezerro, 'CEPEA bezerro')
   ]);
 
   const warnings = [];
 
-  const responses = [
-    scotIndicadoresRes,
-    scotBoiRes,
-    scotVacaRes,
-    scotGraosRes,
-    scotFuturoRes,
+  for (const item of [
+    boiRes,
+    vacaRes,
+    novilhaRes,
+    graosRes,
+    reposicaoRes,
+    futuroRes,
     cepeaHomeRes,
     cepeaBoiRes,
-    cepeaBezerroRes,
-    scotReposicaoRes
-  ];
-
-  for (const item of responses) {
-    if (!item.ok) {
-      warnings.push(`${item.label}: ${item.error}`);
-    }
+    cepeaBezerroRes
+  ]) {
+    if (!item.ok) warnings.push(`${item.label}: ${item.error}`);
   }
 
-  const scotIndicadores = safeParse(
-    parseScotIndicadores,
-    scotIndicadoresRes.html,
-    { date: null, items: [] },
-    warnings,
-    'Scot indicadores'
-  );
+  const boi = boiRes.ok
+    ? parseScotAnimalPage(boiRes.html, 'Boi Gordo')
+    : { date: null, items: [] };
 
-  const scotBoi = safeParse(
-    (html) => parseScotCategoria(html, 'Boi'),
-    scotBoiRes.html,
-    { date: null, items: [] },
-    warnings,
-    'Scot boi'
-  );
+  const vaca = vacaRes.ok
+    ? parseScotAnimalPage(vacaRes.html, 'Vaca Gorda')
+    : { date: null, items: [] };
 
-  const scotVaca = safeParse(
-    (html) => parseScotCategoria(html, 'Vaca'),
-    scotVacaRes.html,
-    { date: null, items: [] },
-    warnings,
-    'Scot vaca'
-  );
+  const novilha = novilhaRes.ok
+    ? parseScotAnimalPage(novilhaRes.html, 'Novilha')
+    : { date: null, items: [] };
 
-  const scotGraos = safeParse(
-    parseScotGraos,
-    scotGraosRes.html,
-    { milhoDate: null, sojaDate: null, milho: [], soja: [] },
-    warnings,
-    'Scot grãos'
-  );
+  const graos = graosRes.ok
+    ? parseScotGraos(graosRes.html)
+    : { milhoDate: null, sojaDate: null, milho: [], soja: [] };
 
-  const scotFuturo = safeParse(
-    parseScotFuturo,
-    scotFuturoRes.html,
-    { date: null, futures: [] },
-    warnings,
-    'Scot futuro'
-  );
-
-  const cepeaHome = safeParse(
-    parseCepeaHome,
-    cepeaHomeRes.html,
-    { date: null, boi: null, bezerro: null, milho: null, soja: null },
-    warnings,
-    'CEPEA painel'
-  );
-
-  const cepeaBoi = safeParse(
-    (html) => parseCepeaIndicador(html, 'Boi CEPEA', 'R$/@'),
-    cepeaBoiRes.html,
-    { date: null, valor: null, label: 'Boi CEPEA', unidade: 'R$/@', fonte: 'CEPEA' },
-    warnings,
-    'CEPEA boi'
-  );
-
-  const cepeaBezerro = safeParse(
-    (html) => parseCepeaIndicador(html, 'Bezerro CEPEA', 'R$/cab'),
-    cepeaBezerroRes.html,
-    {
-      date: null,
-      valor: null,
-      label: 'Bezerro CEPEA',
-      unidade: 'R$/cab',
-      fonte: 'CEPEA'
-    },
-    warnings,
-    'CEPEA bezerro'
-  );
-
-  const reposicao = scotReposicaoRes.html
-    ? parseReposicaoFromRenderedText(scotReposicaoRes.html, warnings)
+  const reposicao = reposicaoRes.ok
+    ? parseReposicao(reposicaoRes.html, warnings)
     : buildReposicaoEmpty();
+
+  const futuro = futuroRes.ok
+    ? parseScotFuturo(futuroRes.html)
+    : { date: null, futures: [] };
+
+  const cepea = {
+    painel: { date: null, boi: null, bezerro: null, milho: null, soja: null },
+    boi: { date: null, valor: null, label: 'Boi CEPEA', unidade: 'R$/@', fonte: 'CEPEA' },
+    bezerro: { date: null, valor: null, label: 'Bezerro CEPEA', unidade: 'R$/cab', fonte: 'CEPEA' }
+  };
+
+  if (!cepeaHomeRes.ok) warnings.push('CEPEA painel indisponível.');
+  if (!cepeaBoiRes.ok) warnings.push('CEPEA boi indisponível.');
+  if (!cepeaBezerroRes.ok) warnings.push('CEPEA bezerro indisponível.');
 
   return {
     ok: true,
     generatedAt: isoNow(),
     cacheTtlHours: CACHE_TTL_MS / 3600000,
-    fontes: ['Scot Consultoria', 'CEPEA', 'AgRural', 'B3'],
+    fontes: ['Scot Consultoria'],
     warning: warnings.length ? warnings.join(' | ') : null,
     resumo: {
-      scotIndicadorBoiData: scotIndicadores.date,
-      scotBoiData: scotBoi.date,
-      scotVacaData: scotVaca.date,
-      scotMilhoData: scotGraos.milhoDate,
-      scotSojaData: scotGraos.sojaDate,
-      scotFuturoData: scotFuturo.date,
+      scotBoiData: boi.date,
+      scotVacaData: vaca.date,
+      scotNovilhaData: novilha.date,
+      scotMilhoData: graos.milhoDate,
+      scotSojaData: graos.sojaDate,
       scotReposicaoData: reposicao.date,
-      cepeaPainelData: cepeaHome.date,
-      cepeaBoiData: cepeaBoi.date,
-      cepeaBezerroData: cepeaBezerro.date
+      scotFuturoData: futuro.date,
+      cepeaPainelData: null,
+      cepeaBoiData: null,
+      cepeaBezerroData: null
     },
-    cepea: {
-      painel: cepeaHome,
-      boi: cepeaBoi,
-      bezerro: cepeaBezerro
-    },
+    cepea,
     scot: {
-      indicador_boi: scotIndicadores,
-      boi_gordo: scotBoi,
-      vaca_gorda: scotVaca,
-      graos: scotGraos,
-      mercado_futuro_boi: scotFuturo,
-      reposicao
+      boi_gordo: boi,
+      vaca_gorda: vaca,
+      novilha_gorda: novilha,
+      graos,
+      reposicao,
+      mercado_futuro_boi: futuro
     }
   };
 }
