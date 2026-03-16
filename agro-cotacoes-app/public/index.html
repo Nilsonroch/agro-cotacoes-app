@@ -16,8 +16,8 @@
             <div class="eyebrow">MERCADO FÍSICO E REFERÊNCIA AGRO</div>
             <h1>Agro Cotações</h1>
             <p>
-              Acompanhe boi gordo, vaca gorda, milho, soja, bezerro e mercado futuro
-              em uma tela simples, com fonte identificada e data de atualização.
+              Acompanhe as cotações da Scot Consultoria para Goiás e São Paulo,
+              com foco em boi gordo, vaca, novilha, reposição, milho e soja.
             </p>
           </div>
         </div>
@@ -41,7 +41,7 @@
 
       <article class="status-card">
         <span class="status-label">Fonte principal</span>
-        <strong>Scot e CEPEA</strong>
+        <strong>Scot Consultoria</strong>
       </article>
     </section>
 
@@ -135,6 +135,33 @@
 
       <article class="data-card">
         <div class="section-head">
+          <h2>Novilha</h2>
+          <span id="novilhaDate">--</span>
+        </div>
+
+        <div class="summary-grid" id="novilhaSummary"></div>
+
+        <button class="toggle-link" type="button" data-target="novilhaTableWrap">
+          Ver praças da novilha
+        </button>
+
+        <div class="table-wrap is-collapsed" id="novilhaTableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Praça</th>
+                <th>À vista</th>
+                <th>A prazo</th>
+                <th>Unidade</th>
+              </tr>
+            </thead>
+            <tbody id="novilhaTable"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="data-card">
+        <div class="section-head">
           <h2>Milho</h2>
           <span id="milhoDate">--</span>
         </div>
@@ -220,40 +247,6 @@
               </tr>
             </thead>
             <tbody id="reposicaoFemeaTable"></tbody>
-          </table>
-        </div>
-      </article>
-
-      <article class="data-card">
-        <div class="section-head">
-          <h2>Indicadores CEPEA</h2>
-          <span id="cepeaDate">--</span>
-        </div>
-
-        <div class="cepea-grid" id="cepeaGrid"></div>
-      </article>
-
-      <article class="data-card">
-        <div class="section-head">
-          <h2>Futuro do boi</h2>
-          <span id="futuroDate">--</span>
-        </div>
-
-        <button class="toggle-link" type="button" data-target="futuroTableWrap">
-          Ver contratos futuros
-        </button>
-
-        <div class="table-wrap is-collapsed" id="futuroTableWrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Vencimento</th>
-                <th>Ajuste atual</th>
-                <th>Variação</th>
-                <th>US$ à vista</th>
-              </tr>
-            </thead>
-            <tbody id="futuroTable"></tbody>
           </table>
         </div>
       </article>
