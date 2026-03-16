@@ -4,6 +4,7 @@ import * as cheerio from 'cheerio';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { chromium } from 'playwright';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -111,9 +112,36 @@ async function safeFetchText(url) {
   return await res.text();
 }
 
+async function safeFetchReposicaoWithPlaywright(url) {
+  const browser = await chromium.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  });
+
+  try {
+    const page = await browser.newPage({
+      userAgent:
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36',
+      locale: 'pt-BR'
+    });
+
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
+    await page.waitForTimeout(5000);
+
+    const html = await page.content();
+    return html;
+  } finally {
+    await browser.close();
+  }
+}
+
 async function tryFetch(url, label) {
   try {
-    const html = await safeFetchText(url);
+    const html =
+      label === 'Scot reposição'
+        ? await safeFetchReposicaoWithPlaywright(url)
+        : await safeFetchText(url);
+
     return { ok: true, label, html, error: null };
   } catch (error) {
     return {
@@ -314,74 +342,124 @@ function buildReposicaoEmpty() {
       femea_nelore: []
     },
     macho_nelore: [],
-    femea_nelore: [],
-    reposicao_debug: {
-      total_lines: 0,
-      sample_lines: [],
-      useful_lines: [],
-      go_lines: [],
-      category_lines: []
-    }
+    femea_nelore: []
   };
 }
 
-function parseScotReposicao(html, warnings = []) {
-  const lines = htmlToLines(html);
-  const base = buildReposicaoEmpty();
-
-  const categoryWords = [
-    'boi magro',
-    'garrote',
-    'bezerro',
-    'desmama',
-    'vaca boiadeira',
-    'novilha',
-    'bezerra',
-    'macho nelore',
-    'femea nelore',
-    'fêmea nelore'
-  ];
-
-  const usefulLines = lines.filter((line) => {
-    const n = normalizeString(line);
-    return categoryWords.some((word) => n.includes(word));
-  });
-
-  const goLines = lines.filter((line) => /\bGO\b/.test(line));
-  const categoryLines = lines.filter((line) => {
-    const n = normalizeString(line);
-    return (
-      n.includes('boi magro') ||
-      n.includes('garrote') ||
-      n.includes('bezerro') ||
-      n.includes('desmama') ||
-      n.includes('vaca boiadeira') ||
-      n.includes('novilha') ||
-      n.includes('bezerra')
-    );
-  });
-
-  const date = extractDateByRegex(lines.join(' '), [
+function parseReposicaoFromRenderedText(html, warnings = []) {
+  const text = cheerio.load(html).text().replace(/\s+/g, ' ');
+  const date = extractDateByRegex(text, [
     /MACHO NELORE\s*-\s*(\d{2}\/\d{2}\/\d{4})/i,
     /FEMEA NELORE\s*-\s*(\d{2}\/\d{2}\/\d{4})/i,
     /FÊMEA NELORE\s*-\s*(\d{2}\/\d{2}\/\d{4})/i,
     /(\d{2}\/\d{2}\/\d{4})/
   ]);
 
-  warnings.push('Scot reposição: modo diagnóstico ativo. Verifique scot.reposicao.reposicao_debug no /api/cotacoes.');
+  const macho_nelore = [];
+  const femea_nelore = [];
+
+  const patterns = [
+    {
+      categoria: 'BOI MAGRO',
+      sexo: 'macho',
+      indicador: 'boi_magro',
+      regex: /BOI MAGRO[\s\S]{0,220}?\bGO\b[\s\S]{0,80}?(\d{1,3}(?:\.\d{3})*,\d{2})/i
+    },
+    {
+      categoria: 'GARROTE',
+      sexo: 'macho',
+      indicador: 'garrote',
+      regex: /GARROTE[\s\S]{0,220}?\bGO\b[\s\S]{0,80}?(\d{1,3}(?:\.\d{3})*,\d{2})/i
+    },
+    {
+      categoria: 'BEZERRO',
+      sexo: 'macho',
+      indicador: 'bezerro',
+      regex: /BEZERRO[\s\S]{0,220}?\bGO\b[\s\S]{0,80}?(\d{1,3}(?:\.\d{3})*,\d{2})/i
+    },
+    {
+      categoria: 'DESMAMA',
+      sexo: 'macho',
+      indicador: 'desmama',
+      regex: /DESMAMA[\s\S]{0,220}?\bGO\b[\s\S]{0,80}?(\d{1,3}(?:\.\d{3})*,\d{2})/i
+    },
+    {
+      categoria: 'VACA BOIADEIRA',
+      sexo: 'femea',
+      indicador: 'vaca_boiadeira',
+      regex: /VACA BOIADEIRA[\s\S]{0,220}?\bGO\b[\s\S]{0,80}?(\d{1,3}(?:\.\d{3})*,\d{2})/i
+    },
+    {
+      categoria: 'NOVILHA',
+      sexo: 'femea',
+      indicador: 'novilha',
+      regex: /NOVILHA[\s\S]{0,220}?\bGO\b[\s\S]{0,80}?(\d{1,3}(?:\.\d{3})*,\d{2})/i
+    },
+    {
+      categoria: 'BEZERRA',
+      sexo: 'femea',
+      indicador: 'bezerra',
+      regex: /BEZERRA[\s\S]{0,220}?\bGO\b[\s\S]{0,80}?(\d{1,3}(?:\.\d{3})*,\d{2})/i
+    },
+    {
+      categoria: 'DESMAMA',
+      sexo: 'femea',
+      indicador: 'desmama_femea',
+      regex: /F(?:Ê|E)MEA NELORE[\s\S]{0,500}?DESMAMA[\s\S]{0,220}?\bGO\b[\s\S]{0,80}?(\d{1,3}(?:\.\d{3})*,\d{2})/i
+    }
+  ];
+
+  const indicadores_pecuarios = {
+    boi_magro: null,
+    garrote: null,
+    bezerro: null,
+    desmama: null,
+    vaca_boiadeira: null,
+    novilha: null,
+    bezerra: null,
+    desmama_femea: null
+  };
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern.regex);
+    const valor = match?.[1] ? brNumberToFloat(match[1]) : null;
+
+    indicadores_pecuarios[pattern.indicador] = valor;
+
+    if (valor !== null) {
+      const item = {
+        categoria: pattern.categoria,
+        uf: 'GO',
+        local: 'Goiás',
+        valor,
+        unidade: 'R$/cab',
+        sexo: pattern.sexo,
+        fonte: 'Scot Consultoria'
+      };
+
+      if (pattern.sexo === 'macho') macho_nelore.push(item);
+      else femea_nelore.push(item);
+    }
+  }
+
+  const foundAny = Object.values(indicadores_pecuarios).some((v) => v !== null);
+
+  if (!foundAny) {
+    warnings.push('Scot reposição: Playwright carregou a página, mas os preços GO ainda não foram identificados.');
+  }
 
   return {
-    ...base,
+    ...buildReposicaoEmpty(),
     date,
-    disponivel: false,
-    observacao: 'Modo diagnóstico ativo para leitura da reposição.',
-    reposicao_debug: {
-      total_lines: lines.length,
-      sample_lines: lines.slice(0, 120),
-      useful_lines: usefulLines.slice(0, 120),
-      go_lines: goLines.slice(0, 120),
-      category_lines: categoryLines.slice(0, 120)
-    }
+    disponivel: foundAny,
+    observacao: foundAny ? null : 'Página renderizada, mas os preços de GO ainda não foram identificados.',
+    indicadores_pecuarios,
+    goias: {
+      macho_nelore,
+      femea_nelore
+    },
+    macho_nelore,
+    femea_nelore
   };
 }
 
@@ -524,7 +602,7 @@ async function buildDataset() {
   );
 
   const reposicao = scotReposicaoRes.html
-    ? parseScotReposicao(scotReposicaoRes.html, warnings)
+    ? parseReposicaoFromRenderedText(scotReposicaoRes.html, warnings)
     : buildReposicaoEmpty();
 
   return {
