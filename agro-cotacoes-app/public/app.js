@@ -1,170 +1,279 @@
-function formatDateTime(iso) {
-  if (!iso) return '--';
-  return new Date(iso).toLocaleString('pt-BR');
-}
+const generatedAtEl = document.getElementById('generatedAt');
+const cacheStatusEl = document.getElementById('cacheStatus');
+const refreshBtn = document.getElementById('refreshBtn');
+const warningBox = document.getElementById('warningBox');
 
-function formatMoney(value, suffix = '') {
-  if (value == null || Number.isNaN(value)) return '--';
-  return new Intl.NumberFormat('pt-BR', {
+const boiDateEl = document.getElementById('boiDate');
+const vacaDateEl = document.getElementById('vacaDate');
+const milhoDateEl = document.getElementById('milhoDate');
+const sojaDateEl = document.getElementById('sojaDate');
+const cepeaDateEl = document.getElementById('cepeaDate');
+const futuroDateEl = document.getElementById('futuroDate');
+const goiasDateEl = document.getElementById('goiasDate');
+
+const boiSummaryEl = document.getElementById('boiSummary');
+const vacaSummaryEl = document.getElementById('vacaSummary');
+
+const boiTableEl = document.getElementById('boiTable');
+const vacaTableEl = document.getElementById('vacaTable');
+const milhoTableEl = document.getElementById('milhoTable');
+const sojaTableEl = document.getElementById('sojaTable');
+const cepeaGridEl = document.getElementById('cepeaGrid');
+const futuroTableEl = document.getElementById('futuroTable');
+
+const goiasBoiEl = document.getElementById('goiasBoi');
+const goiasBoiPrazoEl = document.getElementById('goiasBoiPrazo');
+const goiasVacaEl = document.getElementById('goiasVaca');
+const goiasVacaPrazoEl = document.getElementById('goiasVacaPrazo');
+const goiasMilhoEl = document.getElementById('goiasMilho');
+const goiasMilhoCidadeEl = document.getElementById('goiasMilhoCidade');
+const goiasSojaEl = document.getElementById('goiasSoja');
+const goiasSojaCidadeEl = document.getElementById('goiasSojaCidade');
+
+function formatNumber(value, suffix = '') {
+  if (value === null || value === undefined || Number.isNaN(value)) return '--';
+  return `${Number(value).toLocaleString('pt-BR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
-  }).format(value) + (suffix ? ` ${suffix}` : '');
+  })}${suffix}`;
 }
 
-function setText(id, value) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = value;
+function formatDateTime(value) {
+  if (!value) return '--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('pt-BR');
 }
 
-function createKpi(label, value) {
-  const div = document.createElement('div');
-  div.className = 'kpi';
-  div.innerHTML = `<span class="kpi-label">${label}</span><strong class="kpi-value">${value}</strong>`;
-  return div;
-}
-
-function renderKpis(targetId, items) {
-  const root = document.getElementById(targetId);
-  root.innerHTML = '';
-  items.forEach((item) => root.appendChild(createKpi(item.label, item.value)));
-}
-
-function renderRows(targetId, rows, mapper) {
-  const tbody = document.getElementById(targetId);
-  tbody.innerHTML = '';
-  rows.forEach((row) => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = mapper(row);
-    tbody.appendChild(tr);
-  });
-}
-
-function average(list, key) {
-  if (!list.length) return null;
-  const nums = list.map((x) => x[key]).filter((v) => typeof v === 'number');
-  if (!nums.length) return null;
-  return nums.reduce((a, b) => a + b, 0) / nums.length;
-}
-
-function maxBy(list, key) {
-  return list.reduce((acc, item) => (acc == null || item[key] > acc[key] ? item : acc), null);
-}
-
-async function loadData(refresh = false) {
-  const url = refresh ? '/api/cotacoes?refresh=1' : '/api/cotacoes';
-  const res = await fetch(url);
-  const data = await res.json();
-
-  if (!data.ok) {
-    throw new Error(data.error || 'Falha ao carregar dados');
+function renderWarning(message) {
+  if (!message) {
+    warningBox.classList.add('hidden');
+    warningBox.textContent = '';
+    return;
   }
 
-  setText('generatedAt', formatDateTime(data.generatedAt));
-  setText('cacheInfo', data.cache?.hit ? 'Usando cache' : 'Carga nova');
-
-  const boi = data.scot.boi_gordo.items || [];
-  const vaca = data.scot.vaca_gorda.items || [];
-  const milho = data.scot.graos.milho || [];
-  const soja = data.scot.graos.soja || [];
-  const futuro = data.scot.mercado_futuro_boi.futures || [];
-
-  setText('scotBoiDate', data.scot.boi_gordo.date || '--');
-  setText('scotVacaDate', data.scot.vaca_gorda.date || '--');
-  setText('milhoDate', data.scot.graos.milhoDate || '--');
-  setText('sojaDate', data.scot.graos.sojaDate || '--');
-  setText('cepeaDate', data.cepea.painel.date || '--');
-  setText('futuroDate', data.scot.mercado_futuro_boi.date || '--');
-
-  renderKpis('boiKpis', [
-    { label: 'Média à vista', value: formatMoney(average(boi, 'a_vista'), 'R$/@') },
-    { label: 'Maior praça', value: `${maxBy(boi, 'a_vista')?.praca || '--'}` },
-    { label: 'Valor maior praça', value: formatMoney(maxBy(boi, 'a_vista')?.a_vista, 'R$/@') },
-    { label: 'Qtd. praças', value: `${boi.length}` }
-  ]);
-
-  renderKpis('vacaKpis', [
-    { label: 'Média à vista', value: formatMoney(average(vaca, 'a_vista'), 'R$/@') },
-    { label: 'Maior praça', value: `${maxBy(vaca, 'a_vista')?.praca || '--'}` },
-    { label: 'Valor maior praça', value: formatMoney(maxBy(vaca, 'a_vista')?.a_vista, 'R$/@') },
-    { label: 'Qtd. praças', value: `${vaca.length}` }
-  ]);
-
-  renderKpis('milhoKpis', [
-    { label: 'Média compra', value: formatMoney(average(milho, 'compra'), 'R$/sc') },
-    { label: 'Itumbiara/GO', value: formatMoney((milho.find((x) => x.uf === 'GO' && x.cidade.includes('Itumbiara')) || {}).compra, 'R$/sc') },
-    { label: 'Rio Verde/GO', value: formatMoney((milho.find((x) => x.uf === 'GO' && x.cidade.includes('Rio Verde')) || {}).compra, 'R$/sc') },
-    { label: 'Qtd. praças', value: `${milho.length}` }
-  ]);
-
-  renderKpis('sojaKpis', [
-    { label: 'Média compra', value: formatMoney(average(soja, 'compra'), 'R$/sc') },
-    { label: 'Jataí/GO', value: formatMoney((soja.find((x) => x.uf === 'GO' && x.cidade.includes('Jataí')) || {}).compra, 'R$/sc') },
-    { label: 'Rio Verde/GO', value: formatMoney((soja.find((x) => x.uf === 'GO' && x.cidade.includes('Rio Verde')) || {}).compra, 'R$/sc') },
-    { label: 'Qtd. praças', value: `${soja.length}` }
-  ]);
-
-  renderKpis('cepeaGrid', [
-    { label: 'Boi CEPEA', value: formatMoney(data.cepea.boi.valor, 'R$/@') },
-    { label: 'Bezerro CEPEA', value: formatMoney(data.cepea.bezerro.valor, 'R$/cab') },
-    { label: 'Milho CEPEA', value: formatMoney(data.cepea.painel.milho, 'R$/sc') },
-    { label: 'Soja CEPEA', value: formatMoney(data.cepea.painel.soja, 'R$/sc') }
-  ]);
-
-  renderRows('boiTable', boi, (row) => `
-    <td>${row.praca}</td>
-    <td>${formatMoney(row.a_vista)}</td>
-    <td>${formatMoney(row.a_prazo)}</td>
-    <td>${row.unidade}</td>
-  `);
-
-  renderRows('vacaTable', vaca, (row) => `
-    <td>${row.praca}</td>
-    <td>${formatMoney(row.a_vista)}</td>
-    <td>${formatMoney(row.a_prazo)}</td>
-    <td>${row.unidade}</td>
-  `);
-
-  renderRows('milhoTable', milho, (row) => `
-    <td>${row.uf}</td>
-    <td>${row.cidade}</td>
-    <td>${formatMoney(row.compra)}</td>
-  `);
-
-  renderRows('sojaTable', soja, (row) => `
-    <td>${row.uf}</td>
-    <td>${row.cidade}</td>
-    <td>${formatMoney(row.compra)}</td>
-  `);
-
-  renderRows('futuroTable', futuro, (row) => `
-    <td>${row.vencimento}</td>
-    <td>${formatMoney(row.ajuste_atual)}</td>
-    <td>${formatMoney(row.variacao)}</td>
-    <td>${formatMoney(row.us_a_vista)}</td>
-  `);
+  warningBox.classList.remove('hidden');
+  warningBox.textContent = message;
 }
 
-async function init() {
+function fillSummary(container, items, unitSuffix) {
+  if (!Array.isArray(items) || !items.length) {
+    container.innerHTML = '<div class="empty">Sem dados disponíveis.</div>';
+    return;
+  }
+
+  const media =
+    items.reduce((sum, item) => sum + (Number(item.a_vista) || 0), 0) / items.length;
+
+  const maior = items.reduce((acc, item) => {
+    if (!acc) return item;
+    return Number(item.a_vista) > Number(acc.a_vista) ? item : acc;
+  }, null);
+
+  container.innerHTML = `
+    <div class="summary-box">
+      <span>Média à vista</span>
+      <strong>${formatNumber(media, ` ${unitSuffix}`)}</strong>
+    </div>
+    <div class="summary-box">
+      <span>Maior praça</span>
+      <strong>${maior?.praca || '--'}</strong>
+    </div>
+    <div class="summary-box">
+      <span>Valor maior praça</span>
+      <strong>${formatNumber(maior?.a_vista, ` ${unitSuffix}`)}</strong>
+    </div>
+    <div class="summary-box">
+      <span>Qtd. praças</span>
+      <strong>${items.length}</strong>
+    </div>
+  `;
+}
+
+function renderCategoriaTable(container, items) {
+  if (!Array.isArray(items) || !items.length) {
+    container.innerHTML = '<tr><td colspan="4">Sem dados disponíveis.</td></tr>';
+    return;
+  }
+
+  container.innerHTML = items
+    .map(
+      (item) => `
+        <tr>
+          <td>${item.praca || '--'}</td>
+          <td>${formatNumber(item.a_vista)}</td>
+          <td>${formatNumber(item.a_prazo)}</td>
+          <td>${item.unidade || '--'}</td>
+        </tr>
+      `
+    )
+    .join('');
+}
+
+function renderGraosTable(container, items) {
+  if (!Array.isArray(items) || !items.length) {
+    container.innerHTML = '<tr><td colspan="3">Sem dados disponíveis.</td></tr>';
+    return;
+  }
+
+  container.innerHTML = items
+    .map(
+      (item) => `
+        <tr>
+          <td>${item.uf || '--'}</td>
+          <td>${item.cidade || '--'}</td>
+          <td>${formatNumber(item.compra)}</td>
+        </tr>
+      `
+    )
+    .join('');
+}
+
+function renderCepea(data) {
+  const cards = [
+    { titulo: 'Painel Boi', valor: data?.painel?.boi, unidade: 'R$/@' },
+    { titulo: 'Painel Bezerro', valor: data?.painel?.bezerro, unidade: 'R$/cab' },
+    { titulo: 'Painel Milho', valor: data?.painel?.milho, unidade: 'R$/sc' },
+    { titulo: 'Painel Soja', valor: data?.painel?.soja, unidade: 'R$/sc' },
+    { titulo: 'Boi CEPEA', valor: data?.boi?.valor, unidade: data?.boi?.unidade || '' },
+    { titulo: 'Bezerro CEPEA', valor: data?.bezerro?.valor, unidade: data?.bezerro?.unidade || '' }
+  ];
+
+  cepeaGridEl.innerHTML = cards
+    .map(
+      (item) => `
+        <div class="cepea-card">
+          <span>${item.titulo}</span>
+          <strong>${formatNumber(item.valor)}</strong>
+          <small>${item.unidade}</small>
+        </div>
+      `
+    )
+    .join('');
+}
+
+function renderFuturo(container, items) {
+  if (!Array.isArray(items) || !items.length) {
+    container.innerHTML = '<tr><td colspan="4">Sem dados disponíveis.</td></tr>';
+    return;
+  }
+
+  container.innerHTML = items
+    .map(
+      (item) => `
+        <tr>
+          <td>${item.vencimento || '--'}</td>
+          <td>${formatNumber(item.ajuste_atual)}</td>
+          <td>${formatNumber(item.variacao)}</td>
+          <td>${formatNumber(item.us_a_vista)}</td>
+        </tr>
+      `
+    )
+    .join('');
+}
+
+function findGoiasAnimal(items) {
+  if (!Array.isArray(items)) return null;
+  return (
+    items.find((item) => String(item.praca || '').toLowerCase().includes('go goiânia')) ||
+    items.find((item) => String(item.praca || '').toLowerCase().includes('go goiania')) ||
+    items.find((item) => String(item.praca || '').toLowerCase().includes('go')) ||
+    null
+  );
+}
+
+function findGoiasGrain(items) {
+  if (!Array.isArray(items)) return null;
+  return items.find((item) => String(item.uf || '').toUpperCase() === 'GO') || null;
+}
+
+function renderGoias(data) {
+  const goiasBoi = findGoiasAnimal(data?.scot?.boi_gordo?.items);
+  const goiasVaca = findGoiasAnimal(data?.scot?.vaca_gorda?.items);
+  const goiasMilho = findGoiasGrain(data?.scot?.graos?.milho);
+  const goiasSoja = findGoiasGrain(data?.scot?.graos?.soja);
+
+  goiasDateEl.textContent =
+    data?.resumo?.scotBoiData ||
+    data?.resumo?.scotVacaData ||
+    data?.resumo?.scotMilhoData ||
+    '--';
+
+  goiasBoiEl.textContent = goiasBoi ? `${formatNumber(goiasBoi.a_vista)} ${goiasBoi.unidade}` : '--';
+  goiasBoiPrazoEl.textContent = goiasBoi
+    ? `Prazo: ${formatNumber(goiasBoi.a_prazo)} ${goiasBoi.unidade}`
+    : 'Prazo: --';
+
+  goiasVacaEl.textContent = goiasVaca ? `${formatNumber(goiasVaca.a_vista)} ${goiasVaca.unidade}` : '--';
+  goiasVacaPrazoEl.textContent = goiasVaca
+    ? `Prazo: ${formatNumber(goiasVaca.a_prazo)} ${goiasVaca.unidade}`
+    : 'Prazo: --';
+
+  goiasMilhoEl.textContent = goiasMilho ? `${formatNumber(goiasMilho.compra)} R$/sc` : '--';
+  goiasMilhoCidadeEl.textContent = goiasMilho
+    ? `Cidade: ${goiasMilho.cidade || '--'}`
+    : 'Cidade: --';
+
+  goiasSojaEl.textContent = goiasSoja ? `${formatNumber(goiasSoja.compra)} R$/sc` : '--';
+  goiasSojaCidadeEl.textContent = goiasSoja
+    ? `Cidade: ${goiasSoja.cidade || '--'}`
+    : 'Cidade: --';
+}
+
+function renderAll(data) {
+  generatedAtEl.textContent = formatDateTime(data.generatedAt);
+
+  if (data?.cache?.hit && data?.cache?.stale) {
+    cacheStatusEl.textContent = 'Cache antigo';
+  } else if (data?.cache?.hit) {
+    cacheStatusEl.textContent = 'Cache';
+  } else {
+    cacheStatusEl.textContent = 'Carga nova';
+  }
+
+  renderWarning(data.warning);
+
+  boiDateEl.textContent = data?.scot?.boi_gordo?.date || '--';
+  vacaDateEl.textContent = data?.scot?.vaca_gorda?.date || '--';
+  milhoDateEl.textContent = data?.scot?.graos?.milhoDate || '--';
+  sojaDateEl.textContent = data?.scot?.graos?.sojaDate || '--';
+  cepeaDateEl.textContent = data?.cepea?.painel?.date || '--';
+  futuroDateEl.textContent = data?.scot?.mercado_futuro_boi?.date || '--';
+
+  fillSummary(boiSummaryEl, data?.scot?.boi_gordo?.items || [], 'R$/@');
+  fillSummary(vacaSummaryEl, data?.scot?.vaca_gorda?.items || [], 'R$/@');
+
+  renderCategoriaTable(boiTableEl, data?.scot?.boi_gordo?.items || []);
+  renderCategoriaTable(vacaTableEl, data?.scot?.vaca_gorda?.items || []);
+  renderGraosTable(milhoTableEl, data?.scot?.graos?.milho || []);
+  renderGraosTable(sojaTableEl, data?.scot?.graos?.soja || []);
+  renderCepea(data?.cepea || {});
+  renderFuturo(futuroTableEl, data?.scot?.mercado_futuro_boi?.futures || []);
+  renderGoias(data);
+}
+
+async function loadData(forceRefresh = false) {
   try {
-    await loadData(false);
-  } catch (error) {
-    alert(error.message);
-  }
+    refreshBtn.disabled = true;
+    refreshBtn.textContent = 'Atualizando...';
 
-  document.getElementById('refreshBtn').addEventListener('click', async () => {
-    const btn = document.getElementById('refreshBtn');
-    const original = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = 'Atualizando...';
-    try {
-      await loadData(true);
-    } catch (error) {
-      alert(error.message);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = original;
+    const url = forceRefresh ? '/api/cotacoes?refresh=1' : '/api/cotacoes';
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || 'Falha ao carregar cotações.');
     }
-  });
+
+    renderAll(data);
+  } catch (error) {
+    renderWarning(error.message || 'Erro ao carregar os dados.');
+  } finally {
+    refreshBtn.disabled = false;
+    refreshBtn.textContent = 'Atualizar agora';
+  }
 }
 
-init();
+refreshBtn.addEventListener('click', () => loadData(true));
+
+loadData(false);
