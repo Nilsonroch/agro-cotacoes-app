@@ -5,22 +5,21 @@ const warningBox = document.getElementById('warningBox');
 
 const boiDateEl = document.getElementById('boiDate');
 const vacaDateEl = document.getElementById('vacaDate');
+const novilhaDateEl = document.getElementById('novilhaDate');
 const milhoDateEl = document.getElementById('milhoDate');
 const sojaDateEl = document.getElementById('sojaDate');
-const cepeaDateEl = document.getElementById('cepeaDate');
-const futuroDateEl = document.getElementById('futuroDate');
 const reposicaoDateEl = document.getElementById('reposicaoDate');
 const goiasDateEl = document.getElementById('goiasDate');
 
 const boiSummaryEl = document.getElementById('boiSummary');
 const vacaSummaryEl = document.getElementById('vacaSummary');
+const novilhaSummaryEl = document.getElementById('novilhaSummary');
 
 const boiTableEl = document.getElementById('boiTable');
 const vacaTableEl = document.getElementById('vacaTable');
+const novilhaTableEl = document.getElementById('novilhaTable');
 const milhoTableEl = document.getElementById('milhoTable');
 const sojaTableEl = document.getElementById('sojaTable');
-const cepeaGridEl = document.getElementById('cepeaGrid');
-const futuroTableEl = document.getElementById('futuroTable');
 const pecuariaGridEl = document.getElementById('pecuariaGrid');
 const reposicaoMachoTableEl = document.getElementById('reposicaoMachoTable');
 const reposicaoFemeaTableEl = document.getElementById('reposicaoFemeaTable');
@@ -133,29 +132,6 @@ function renderGraosTable(container, items) {
     .join('');
 }
 
-function renderCepea(data) {
-  const cards = [
-    { titulo: 'Painel Boi', valor: data?.painel?.boi, unidade: 'R$/@' },
-    { titulo: 'Painel Bezerro', valor: data?.painel?.bezerro, unidade: 'R$/cab' },
-    { titulo: 'Painel Milho', valor: data?.painel?.milho, unidade: 'R$/sc' },
-    { titulo: 'Painel Soja', valor: data?.painel?.soja, unidade: 'R$/sc' },
-    { titulo: 'Boi CEPEA', valor: data?.boi?.valor, unidade: data?.boi?.unidade || '' },
-    { titulo: 'Bezerro CEPEA', valor: data?.bezerro?.valor, unidade: data?.bezerro?.unidade || '' }
-  ];
-
-  cepeaGridEl.innerHTML = cards
-    .map(
-      (item) => `
-        <div class="cepea-card">
-          <span>${item.titulo}</span>
-          <strong>${formatNumber(item.valor)}</strong>
-          <small>${item.unidade}</small>
-        </div>
-      `
-    )
-    .join('');
-}
-
 function renderPecuaria(indicadores) {
   const cards = [
     { titulo: 'Boi magro', valor: indicadores?.boi_magro, unidade: 'R$/cab' },
@@ -196,26 +172,6 @@ function renderReposicaoTable(container, items) {
           <td>${item.local || '--'}</td>
           <td>${formatNumber(item.valor)}</td>
           <td>${item.unidade || '--'}</td>
-        </tr>
-      `
-    )
-    .join('');
-}
-
-function renderFuturo(container, items) {
-  if (!Array.isArray(items) || !items.length) {
-    container.innerHTML = '<tr><td colspan="4">Sem dados disponíveis.</td></tr>';
-    return;
-  }
-
-  container.innerHTML = items
-    .map(
-      (item) => `
-        <tr>
-          <td>${item.vencimento || '--'}</td>
-          <td>${formatNumber(item.ajuste_atual)}</td>
-          <td>${formatNumber(item.variacao)}</td>
-          <td>${formatNumber(item.us_a_vista)}</td>
         </tr>
       `
     )
@@ -301,9 +257,9 @@ function setupToggles() {
       const labels = {
         boiTableWrap: ['Ver praças do boi', 'Ocultar praças do boi'],
         vacaTableWrap: ['Ver praças da vaca', 'Ocultar praças da vaca'],
+        novilhaTableWrap: ['Ver praças da novilha', 'Ocultar praças da novilha'],
         milhoTableWrap: ['Ver praças do milho', 'Ocultar praças do milho'],
         sojaTableWrap: ['Ver praças da soja', 'Ocultar praças da soja'],
-        futuroTableWrap: ['Ver contratos futuros', 'Ocultar contratos futuros'],
         reposicaoTableWrap: ['Ver reposição GO', 'Ocultar reposição GO']
       };
 
@@ -329,20 +285,20 @@ function renderAll(data) {
 
   boiDateEl.textContent = data?.scot?.boi_gordo?.date || '--';
   vacaDateEl.textContent = data?.scot?.vaca_gorda?.date || '--';
+  novilhaDateEl.textContent = data?.scot?.novilha_gorda?.date || '--';
   milhoDateEl.textContent = data?.scot?.graos?.milhoDate || '--';
   sojaDateEl.textContent = data?.scot?.graos?.sojaDate || '--';
-  cepeaDateEl.textContent = data?.cepea?.painel?.date || '--';
-  futuroDateEl.textContent = data?.scot?.mercado_futuro_boi?.date || '--';
   reposicaoDateEl.textContent = data?.scot?.reposicao?.date || '--';
 
   fillSummary(boiSummaryEl, data?.scot?.boi_gordo?.items || [], 'R$/@');
   fillSummary(vacaSummaryEl, data?.scot?.vaca_gorda?.items || [], 'R$/@');
+  fillSummary(novilhaSummaryEl, data?.scot?.novilha_gorda?.items || [], 'R$/@');
 
   renderCategoriaTable(boiTableEl, data?.scot?.boi_gordo?.items || []);
   renderCategoriaTable(vacaTableEl, data?.scot?.vaca_gorda?.items || []);
+  renderCategoriaTable(novilhaTableEl, data?.scot?.novilha_gorda?.items || []);
   renderGraosTable(milhoTableEl, data?.scot?.graos?.milho || []);
   renderGraosTable(sojaTableEl, data?.scot?.graos?.soja || []);
-  renderCepea(data?.cepea || {});
   renderPecuaria(data?.scot?.reposicao?.indicadores_pecuarios || {});
   renderReposicaoTable(
     reposicaoMachoTableEl,
@@ -352,7 +308,6 @@ function renderAll(data) {
     reposicaoFemeaTableEl,
     data?.scot?.reposicao?.goias?.femea_nelore || []
   );
-  renderFuturo(data?.scot?.mercado_futuro_boi?.futures || []);
   renderGoias(data);
 }
 
