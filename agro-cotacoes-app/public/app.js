@@ -222,17 +222,20 @@ function renderFuturo(container, items) {
     .join('');
 }
 
-function findGoiasAnimal(items) {
+function findPraca(items, needles) {
   if (!Array.isArray(items)) return null;
 
   return (
-    items.find((item) => String(item.praca || '').toLowerCase().includes('go goiânia')) ||
-    items.find((item) => String(item.praca || '').toLowerCase().includes('go goiania')) ||
-    items.find((item) => String(item.praca || '').toLowerCase().includes('goiânia')) ||
-    items.find((item) => String(item.praca || '').toLowerCase().includes('goiania')) ||
-    items.find((item) => String(item.praca || '').startsWith('go ')) ||
-    null
+    items.find((item) =>
+      needles.some((needle) =>
+        String(item.praca || '').toLowerCase().includes(needle)
+      )
+    ) || null
   );
+}
+
+function findGoiasAnimal(items) {
+  return findPraca(items, ['go goiânia', 'go goiania', 'goiânia', 'goiania']);
 }
 
 function findGoiasGrain(items) {
@@ -252,12 +255,18 @@ function renderGoias(data) {
     data?.resumo?.scotMilhoData ||
     '--';
 
-  goiasBoiEl.textContent = goiasBoi ? `${formatNumber(goiasBoi.a_vista)} ${goiasBoi.unidade}` : '--';
+  goiasBoiEl.textContent = goiasBoi
+    ? `${formatNumber(goiasBoi.a_vista)} ${goiasBoi.unidade}`
+    : '--';
+
   goiasBoiPrazoEl.textContent = goiasBoi
     ? `Prazo: ${formatNumber(goiasBoi.a_prazo)} ${goiasBoi.unidade}`
     : 'Prazo: --';
 
-  goiasVacaEl.textContent = goiasVaca ? `${formatNumber(goiasVaca.a_vista)} ${goiasVaca.unidade}` : '--';
+  goiasVacaEl.textContent = goiasVaca
+    ? `${formatNumber(goiasVaca.a_vista)} ${goiasVaca.unidade}`
+    : '--';
+
   goiasVacaPrazoEl.textContent = goiasVaca
     ? `Prazo: ${formatNumber(goiasVaca.a_prazo)} ${goiasVaca.unidade}`
     : 'Prazo: --';
@@ -343,7 +352,7 @@ function renderAll(data) {
     reposicaoFemeaTableEl,
     data?.scot?.reposicao?.goias?.femea_nelore || []
   );
-  renderFuturo(futuroTableEl, data?.scot?.mercado_futuro_boi?.futures || []);
+  renderFuturo(data?.scot?.mercado_futuro_boi?.futures || []);
   renderGoias(data);
 }
 
