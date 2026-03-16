@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import cheerio from 'cheerio';
+import * as cheerio from 'cheerio';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -30,7 +30,10 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 function brNumberToFloat(value) {
   if (!value) return null;
-  const normalized = String(value).replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, '');
+  const normalized = String(value)
+    .replace(/\./g, '')
+    .replace(',', '.')
+    .replace(/[^0-9.-]/g, '');
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
 }
@@ -42,7 +45,8 @@ function isoNow() {
 async function safeFetchText(url) {
   const res = await fetch(url, {
     headers: {
-      'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36',
+      'user-agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36',
       'accept-language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
       'cache-control': 'no-cache'
     }
@@ -52,7 +56,7 @@ async function safeFetchText(url) {
     throw new Error(`Falha ao acessar ${url}: ${res.status}`);
   }
 
-  return res.text();
+  return await res.text();
 }
 
 function extractDateByRegex(text, patterns = []) {
@@ -64,14 +68,22 @@ function extractDateByRegex(text, patterns = []) {
 }
 
 function cleanText(text) {
-  return String(text || '').replace(/\s+/g, ' ').trim();
+  return String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function parseScotIndicadores(html) {
   const text = cheerio.load(html).text().replace(/\s+/g, ' ');
-  const date = extractDateByRegex(text, [/Indicador do boi gordo da Scot Consultoria \(R\$\/@\) - (\d{2}\/\d{2}\/\d{4})/i]);
+  const date = extractDateByRegex(text, [
+    /Indicador do boi gordo da Scot Consultoria \(R\$\/@\) - (\d{2}\/\d{2}\/\d{4})/i
+  ]);
 
-  const matches = [...text.matchAll(/\b([A-Z]{2}\s(?:Barretos|Araçatuba|Triângulo|BH|Norte|Sul|Goiânia|Reg\. Sul|Dourados|C\. Grande|Três Lagoas|Oeste \(kg\)|Pelotas \(kg\)|Oeste|Sudoeste|Cuiabá\*|Sudeste|Noroeste|SC|Alagoas|Marabá|Redenção|Paragominas|Acre|ES|RJ))\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})/g)];
+  const matches = [
+    ...text.matchAll(
+      /\b([A-Z]{2}\s(?:Barretos|Araçatuba|Triângulo|BH|Norte|Sul|Goiânia|Reg\. Sul|Dourados|C\. Grande|Três Lagoas|Oeste \(kg\)|Pelotas \(kg\)|Oeste|Sudoeste|Cuiabá\*|Sudeste|Noroeste|SC|Alagoas|Marabá|Redenção|Paragominas|Acre|ES|RJ))\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})/g
+    )
+  ];
 
   const items = matches.map((m) => ({
     praca: cleanText(m[1]),
@@ -86,9 +98,13 @@ function parseScotIndicadores(html) {
 
 function parseScotCategoria(html, categoriaNome) {
   const text = cheerio.load(html).text().replace(/\s+/g, ' ');
-  const date = extractDateByRegex(text, [new RegExp(`${categoriaNome}.*?(\d{2}\/\d{2}\/\d{4})`, 'i')]);
+  const date = extractDateByRegex(text, [
+    new RegExp(`${categoriaNome}.*?(\\d{2}\\/\\d{2}\\/\\d{4})`, 'i')
+  ]);
 
-  const regex = /\b([A-Z]{2}\s(?:Barretos|Araçatuba|Triângulo|BH|Norte|Sul|Goiânia|Reg\. Sul|Dourados|C\. Grande|Três Lagoas|Oeste \(kg\)|Pelotas \(kg\)|Oeste|Sudoeste|Cuiabá\*|Sudeste|Noroeste|SC|Alagoas|Marabá|Redenção|Paragominas|Acre|ES|RJ|Roraima))\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})/g;
+  const regex =
+    /\b([A-Z]{2}\s(?:Barretos|Araçatuba|Triângulo|BH|Norte|Sul|Goiânia|Reg\. Sul|Dourados|C\. Grande|Três Lagoas|Oeste \(kg\)|Pelotas \(kg\)|Oeste|Sudoeste|Cuiabá\*|Sudeste|Noroeste|SC|Alagoas|Marabá|Redenção|Paragominas|Acre|ES|RJ|Roraima))\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})/g;
+
   const items = [...text.matchAll(regex)].map((m) => ({
     praca: cleanText(m[1]),
     a_vista: brNumberToFloat(m[2]),
@@ -107,10 +123,13 @@ function parseScotGraos(html) {
 
   const milhoStart = text.indexOf('MILHO -');
   const sojaStart = text.indexOf('SOJA -');
-  const milhoBlock = milhoStart >= 0 && sojaStart > milhoStart ? text.slice(milhoStart, sojaStart) : '';
+
+  const milhoBlock =
+    milhoStart >= 0 && sojaStart > milhoStart ? text.slice(milhoStart, sojaStart) : '';
   const sojaBlock = sojaStart >= 0 ? text.slice(sojaStart) : '';
 
-  const grainRegex = /\b([A-Z]{2})\s+([A-Za-zÀ-ÿ\.\- ]+?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})(?=\s+[A-Z]{2}\s+[A-Za-zÀ-ÿ]|\s*\*|$)/g;
+  const grainRegex =
+    /\b([A-Z]{2})\s+([A-Za-zÀ-ÿ.\- ]+?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})(?=\s+[A-Z]{2}\s+[A-Za-zÀ-ÿ]|\s*\*|$)/g;
 
   const milho = [...milhoBlock.matchAll(grainRegex)].map((m) => ({
     uf: m[1],
@@ -138,8 +157,15 @@ function parseScotGraos(html) {
 
 function parseScotFuturo(html) {
   const text = cheerio.load(html).text().replace(/\s+/g, ' ');
-  const date = extractDateByRegex(text, [/MERCADO FUTURO DO BOI GORDO - (\d{2}\/\d{2}\/\d{4})/i]);
-  const futures = [...text.matchAll(/\b([A-Z][a-z]{2}\/\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d+)\s+([\-0-9,]+)\s+(\d{1,2},\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})/g)].map((m) => ({
+  const date = extractDateByRegex(text, [
+    /MERCADO FUTURO DO BOI GORDO - (\d{2}\/\d{2}\/\d{4})/i
+  ]);
+
+  const futures = [
+    ...text.matchAll(
+      /\b([A-Z][a-z]{2}\/\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d+)\s+([\-0-9,]+)\s+(\d{1,2},\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})/g
+    )
+  ].map((m) => ({
     vencimento: m[1],
     ajuste_anterior: brNumberToFloat(m[2]),
     ajuste_atual: brNumberToFloat(m[3]),
@@ -175,7 +201,10 @@ function parseCepeaHome(html) {
 
 function parseCepeaIndicador(html, label, unidade) {
   const text = cheerio.load(html).text().replace(/\s+/g, ' ');
-  const match = text.match(/(\d{2}\/\d{2}\/\d{4})\s+([0-9\.]+,\d{2})\s+[\-0-9,%]+\s+[\-0-9,%]+\s+[0-9\.]+,\d{2}/);
+  const match = text.match(
+    /(\d{2}\/\d{2}\/\d{4})\s+([0-9.]+,\d{2})\s+[\-0-9,%]+\s+[\-0-9,%]+\s+[0-9.]+,\d{2}/
+  );
+
   return {
     date: match?.[1] || null,
     valor: match?.[2] ? brNumberToFloat(match[2]) : null,
@@ -188,10 +217,12 @@ function parseCepeaIndicador(html, label, unidade) {
 function parseScotReposicao(html) {
   const text = cheerio.load(html).text().replace(/\s+/g, ' ');
   const date = extractDateByRegex(text, [/MACHO NELORE - (\d{2}\/\d{2}\/\d{4})/i]);
+
   return {
     date,
     disponivel: true,
-    observacao: 'A página de reposição da Scot está disponível, mas a primeira versão do app ainda não normaliza a tabela completa por categoria e UF.'
+    observacao:
+      'A página de reposição da Scot está disponível, mas a primeira versão do app ainda não normaliza a tabela completa por categoria e UF.'
   };
 }
 
@@ -242,16 +273,11 @@ async function buildDataset() {
   const cepeaBezerro = parseCepeaIndicador(cepeaBezerroHtml, 'Bezerro CEPEA', 'R$/cab');
   const reposicao = parseScotReposicao(scotReposicaoHtml);
 
-  const payload = {
+  return {
     ok: true,
     generatedAt: isoNow(),
     cacheTtlHours: CACHE_TTL_MS / 3600000,
-    fontes: [
-      'Scot Consultoria',
-      'CEPEA',
-      'AgRural',
-      'B3'
-    ],
+    fontes: ['Scot Consultoria', 'CEPEA', 'AgRural', 'B3'],
     resumo: {
       scotIndicadorBoiData: scotIndicadores.date,
       scotBoiData: scotBoi.date,
@@ -277,8 +303,6 @@ async function buildDataset() {
       reposicao
     }
   };
-
-  return payload;
 }
 
 async function getDataset(forceRefresh = false) {
@@ -286,13 +310,19 @@ async function getDataset(forceRefresh = false) {
   const cacheAge = cache ? Date.now() - new Date(cache.generatedAt).getTime() : Infinity;
 
   if (!forceRefresh && cache && cacheAge < CACHE_TTL_MS) {
-    return { ...cache, cache: { hit: true, ageMs: cacheAge } };
+    return {
+      ...cache,
+      cache: { hit: true, ageMs: cacheAge }
+    };
   }
 
   try {
     const fresh = await buildDataset();
     await saveCache(fresh);
-    return { ...fresh, cache: { hit: false, ageMs: 0 } };
+    return {
+      ...fresh,
+      cache: { hit: false, ageMs: 0 }
+    };
   } catch (error) {
     if (cache) {
       return {
@@ -308,7 +338,11 @@ async function getDataset(forceRefresh = false) {
 }
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, service: 'agro-cotacoes-app', now: isoNow() });
+  res.json({
+    ok: true,
+    service: 'agro-cotacoes-app',
+    now: isoNow()
+  });
 });
 
 app.get('/api/cotacoes', async (req, res) => {
@@ -317,7 +351,10 @@ app.get('/api/cotacoes', async (req, res) => {
     const data = await getDataset(forceRefresh);
     res.json(data);
   } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
+    res.status(500).json({
+      ok: false,
+      error: error.message
+    });
   }
 });
 
